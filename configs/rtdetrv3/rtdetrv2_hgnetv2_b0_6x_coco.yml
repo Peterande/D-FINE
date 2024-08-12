@@ -1,0 +1,64 @@
+__include__: [
+  '../dataset/coco_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/rtdetrv2_r50vd.yml',
+]
+
+
+output_dir: ./output/rtdetrv2_hgnetv2_b3_6x_coco
+
+
+RTDETR:
+  backbone: HGNetv2
+
+
+HGNetv2:
+  name: 'B0'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+  use_lab: True
+
+
+HybridEncoder:
+  in_channels: [256, 512, 1024]
+  hidden_dim: 256
+  depth_mult: 0.34
+  expansion: 0.5
+
+RTDETRTransformerv2:
+  num_layers: 6
+  eval_idx: -4
+
+
+epoches: 120 
+
+optimizer:
+  type: AdamW
+  params: 
+    - 
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.0001
+    - 
+      params: '^(?=.*backbone)(?=.*norm|bn).*$'
+      lr: 0.0001
+      weight_decay: 0.
+    - 
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
+      weight_decay: 0.
+
+  lr: 0.0002
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+
+train_dataloader: 
+  dataset: 
+    transforms:
+      policy:
+        epoch: 121
+  collate_fn:
+    stop_epoch: 121

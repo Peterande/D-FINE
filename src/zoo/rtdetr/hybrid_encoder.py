@@ -90,17 +90,13 @@ class RepVggBlock(nn.Module):
 class RepNCSPELAN4(nn.Module):
     # csp-elan
     def __init__(self, c1, c2, c3, c4, n=3,  
-                 bias=None,
+                 bias=False,
                  act="silu"):
         super().__init__()
         self.c = c3//2
         self.cv1 = ConvNormLayer(c1, c3, 1, 1, bias=bias, act=act)
-        if n > 0:
-            self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))
-            self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))
-        else:
-            self.cv2 = ConvNormLayer(c3//2, c4, 3, 1, bias=bias, act=act)
-            self.cv3 = ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act)            
+        self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))     
         self.cv4 = ConvNormLayer(c3+(2*c4), c2, 1, 1, bias=bias, act=act)
 
     def forward(self, x):
@@ -120,7 +116,7 @@ class CSPRepLayer(nn.Module):
                  out_channels,
                  num_blocks=3,
                  expansion=1.0,
-                 bias=None,
+                 bias=False,
                  act="silu"):
         super(CSPRepLayer, self).__init__()
         hidden_channels = int(out_channels * expansion)
@@ -274,7 +270,7 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1, 0, -1):
             self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act))
             self.fpn_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, hidden_dim // 2, round(3 * depth_mult))
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim * 2), round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
             )
 
@@ -289,7 +285,7 @@ class HybridEncoder(nn.Module):
                 )
             )
             self.pan_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, hidden_dim // 2, round(3 * depth_mult))
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim * 2), round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
             )
 

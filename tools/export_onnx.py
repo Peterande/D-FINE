@@ -84,11 +84,11 @@ def main(args, ):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', type=str, )
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/rtdetrv3/rtdetrv2_hgnetv2_b6_6x_coco.yml', type=str, )
     parser.add_argument('--resume', '-r', type=str, )
-    parser.add_argument('--output_file', '-o', type=str, default='model.onnx')
-    parser.add_argument('--check',  action='store_true', default=False,)
-    parser.add_argument('--simplify',  action='store_true', default=False,)
+    parser.add_argument('--output_file', '-o', default='/home/pengys/code/rtdetrv2_pytorch/deployment/OURS/b6.onnx', type=str)
+    parser.add_argument('--check',  action='store_true', default=True,)
+    parser.add_argument('--simplify',  action='store_true', default=True,)
 
     args = parser.parse_args()
 

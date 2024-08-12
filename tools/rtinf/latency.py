@@ -6,11 +6,11 @@ rcParams['font.family'] = 'Times New Roman'
 # /home/pengys/miniconda3/envs/rtdetr/lib/python3.9/site-packages/matplotlib/mpl-data/matplotlibrc
 # 数据示例
 networks = ['Ours', 'YOLOv6-v3.0', 'YOLOv8', 'YOLOv10', 'YOLOV9',
-            'RT-DETR+HGNetV2', 'RT-DETR', 'Gold-YOLO']
+            'RT-DETR+HGNetV2', 'RT-DETR', 'RT-DETRv2', 'RT-DETR (Objects365)', 'Gold-YOLO']
 
 
 latency_data = [
-    [2.49],  # Ours
+    [1.09, 1.41, 1.84, 2.48, 3.19],  # Ours
     # [6.60, 6.65, 6.95, 7.33, 8.05],  # YOLOv5
     [1.36, 1.53, 2.00, 2.62],  # YOLOv6
     # [7.24, 7.85],  # YOLOv7
@@ -19,13 +19,14 @@ latency_data = [
     [2.6, 2.98, 4.05],  # YOLOv9
     [2.55, 3.22],  # RT-DETR
     [1.41, 1.83, 1.84, 2.48, 3.19],  # RT-DETR
-    # [1.41, 2.48, 3.19],  # RT-DETR+Obj365
+    [1.41, 1.83, 1.84, 2.48, 3.19],  # RT-DETRv2
+    [1.41, 2.48, 3.19],  # RT-DETR+Obj365
     [1.72, 1.91, 2.43, 3.05],  # Gold-YOLO-
     # [0.77, 0.92, 1.83, 2.63, 7.90],  # LW-DETR
 ]
 coco_ap_data = [
 #   [B0  , B1  , B2* , B3* , B4* , B5* ]
-    [53.8],  # Ours
+    [47.0, 49.9, 52.9, 54.0, 55.3],  # Ours
     # [28.0, 37.4, 45.4, 49.0, 50.7],  # YOLOv5
     [37.5, 45.0, 50.0, 52.8],  # YOLOv6
     # [51.4, 53.1],  # YOLOv7
@@ -34,7 +35,8 @@ coco_ap_data = [
     [51.4, 53.0, 55.6],  # YOLOv9
     [53.0, 54.8],  # RT-DETR*
     [46.5, 48.9, 51.3, 53.1, 54.3],  # RT-DETR
-    # [49.2, 55.4, 56.2],  # RT-DETR+Obj365
+    [47.9, 49.9, 51.9, 53.4, 54.3],  # RT-DETRv2
+    [49.2, 55.4, 56.2],  # RT-DETR+Obj365
     [39.9, 46.4, 51.1, 53.3],  # Gold-YOLO
     # [42.6, 48.0, 52.5, 56.1, 58.3]  # LW-DETR
 
