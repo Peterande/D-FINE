@@ -1,0 +1,34 @@
+task: detection
+
+num_classes: 366
+remap_mscoco_category: False
+
+train_dataloader: 
+  type: DataLoader
+  dataset: 
+    type: CocoDetection
+    img_folder: /data/pengys/Objects365/data/train/
+    ann_file: /data/pengys/Objects365/data/train/new_zhiyuan_objv2_train_resized.json
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  batch_size: 12
+  num_workers: 8
+  drop_last: True 
+
+
+val_dataloader:
+  type: DataLoader
+  dataset: 
+    type: CocoDetection
+    img_folder: /data/pengys/Objects365/data/val/
+    ann_file: /data/pengys/Objects365/data/val/new_zhiyuan_objv2_val_resized.json
+    transforms:
+      type: Compose
+      ops: ~ 
+
+  shuffle: False
+  batch_size: 12
+  num_workers: 8
+  drop_last: False

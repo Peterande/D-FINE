@@ -1,0 +1,31 @@
+1. 通过https://opendatalab.com/OpenDataLab/Objects365/cli/main
+把Objects365数据集下载到/data/username(替换成你的)
+2. 漫长的解压过程:
+建议使用ls *.tar.gz | parallel 'pigz -dc {} | tar xv -' 等快速解压方法。
+最后形成如下目录结构，然后，将val/v1, val/v2 在 train/images_from_val 中复制一份（为了3）:
+```
+/data/username/Objects365/data/train
+├── images_from_val
+├── images
+│   ├── v1
+│   │   ├── patch0
+│   │   │   ├── 000000000.jpg
+│   ├── v2
+│   │   ├── patchx
+│   │   │   ├── 000000000.jpg
+├── /data/pengys/Objects365/data/train/zhiyuan_objv2_train.json
+
+/data/username/Objects365/data/val
+├── images
+│   ├── v1
+│   │   ├── patch0
+│   │   │   ├── 000000000.jpg
+│   ├── v2
+│   │   ├── patchx
+│   │   │   ├── 000000000.jpg
+├── /data/pengys/Objects365/data/val/zhiyuan_objv2_val.json
+
+3. 全部解压完成后，运行remap_obj365.py，将val的5000-800000的样本加入train。
+4. 运行resize_obj365.py，将数据集中最大边超过640的样本提前resize。
+注意要使用第三步新生成的json读取样本，对train和val分别进行，已经在代码中将train和val用注释区分。
+
