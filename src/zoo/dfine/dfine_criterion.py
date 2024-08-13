@@ -12,15 +12,11 @@ import copy
 from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
 from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from ...core import register
-from .rtdetrv2_decoder import bbox2distance
+from .dfine_decoder import bbox2distance
 
-
-ss = 32
-up = 0.5
-tt = (up * ss // 8 + 1) ** (2 / ss)
 
 @register()
-class RTDETRCriterionv2(nn.Module):
+class DFINECriterion(nn.Module):
     """ This class computes the loss for DETR.
     The process happens in two steps:
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
@@ -36,6 +32,7 @@ class RTDETRCriterionv2(nn.Module):
         alpha=0.2, 
         gamma=2.0, 
         num_classes=80, 
+        reg_max=32,
         boxes_weight_format=None,
         share_matched_indices=False):
         """Create the criterion.
@@ -59,6 +56,7 @@ class RTDETRCriterionv2(nn.Module):
         self.ious_teacher, self.ious_teacher_dn = None, None
         self.dfl_targets, self.dfl_targets_dn = None, None
         self.weight_targets, self.weight_targets_dn = None, None
+        self.reg_max = reg_max
         
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -124,19 +122,19 @@ class RTDETRCriterionv2(nn.Module):
         
         return losses
 
-    def loss_local(self, outputs, targets, indices, num_boxes):
+    def loss_local(self, outputs, targets, indices, num_boxes, T=5):
         assert 'pred_corners' in outputs
         idx = self._get_src_permutation_idx(indices)
         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
         losses = {}
-        pred_corners = outputs['pred_corners'][idx].reshape(-1, (ss+1))
+        pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))
         ref_unsigmoid = outputs['ref_points'][idx].detach()
         
         if self.dfl_targets_dn is None and 'is_dn' in outputs:
-                self.dfl_targets_dn = bbox2distance(ref_unsigmoid, box_cxcywh_to_xyxy(target_boxes), ss // 8, ss)
+                self.dfl_targets_dn= bbox2distance(ref_unsigmoid, box_cxcywh_to_xyxy(target_boxes), self.reg_max)
         if self.dfl_targets is None and 'is_dn' not in outputs:
-                self.dfl_targets= bbox2distance(ref_unsigmoid, box_cxcywh_to_xyxy(target_boxes), ss // 8, ss)
+                self.dfl_targets= bbox2distance(ref_unsigmoid, box_cxcywh_to_xyxy(target_boxes), self.reg_max)
 
         target_corners, weight_right, weight_left = self.dfl_targets_dn if 'is_dn' in outputs else self.dfl_targets
         target_corners = target_corners.reshape(-1)
@@ -145,25 +143,20 @@ class RTDETRCriterionv2(nn.Module):
                     box_cxcywh_to_xyxy(outputs['pred_boxes'][idx]), box_cxcywh_to_xyxy(target_boxes))[0])
         weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
         
-        losses['loss_dfl'] = 0.1 * self.distribution_focal_loss(
-            pred_corners, target_corners, ss, weight_right, weight_left, weight_targets, reduction='sum') / num_boxes
+        losses['loss_dfl'] = self.unimodal_distribution_focal_loss(
+            pred_corners, target_corners, weight_right, weight_left, weight_targets, reduction='sum') / num_boxes
 
         if 'teacher_corners' in outputs:  
-            pred_corners = outputs['pred_corners'].reshape(-1, (ss+1))       
-            target_corners = outputs['teacher_corners'].reshape(-1, (ss+1)).detach()
+            pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))         
+            target_corners = outputs['teacher_corners'].reshape(-1, (self.reg_max+1)).detach()
             weight_targets = outputs['teacher_logits'].sigmoid()
             weight_targets = weight_targets.max(dim=-1)[0].float() #.flatten(0, 1) 
-            mask = torch.zeros_like(weight_targets, dtype=torch.bool)
-            mask[idx] = 1
-            mask = mask.unsqueeze(-1).repeat(1, 1, 4).reshape(-1)
             weight_targets[idx] = ious.reshape_as(weight_targets[idx])
             weight_targets = weight_targets.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
 
             if not (pred_corners == target_corners).all():
-                T, average_factor = 5, 0.5
-                loss_match_local = average_factor * (weight_targets * (T ** 2) * nn.KLDivLoss(reduction='none') \
-                    (F.log_softmax(pred_corners/T, dim=1), F.softmax(target_corners/T, dim=1)).sum(-1))
-                losses['loss_match_local'] = 0.25 * loss_match_local[mask].mean() + loss_match_local[~mask].mean()
+                losses['loss_match_local'] = (weight_targets * (T ** 2) * nn.KLDivLoss(reduction='none') \
+                    (F.log_softmax(pred_corners/T, dim=1), F.softmax(target_corners/T, dim=1)).sum(-1)).mean() / 2
             
         return losses
     
@@ -267,7 +260,6 @@ class RTDETRCriterionv2(nn.Module):
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
-                aux_outputs['scale_factor'] = 0.5 ** i
                 for loss in self.losses:
                     indices_in = indices_go if loss in ['boxes', 'local'] else cached_indices[i]['indices']
                     num_boxes_in = num_boxes_go if loss in ['boxes', 'local'] else num_boxes
@@ -278,7 +270,7 @@ class RTDETRCriterionv2(nn.Module):
                     l_dict = {k + f'_aux_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict) 
                               
-        # In case of encoder auxiliary losses. For rtdetr v2
+        # In case of encoder auxiliary losses.
         if 'enc_aux_outputs' in outputs:
             assert 'enc_meta' in outputs, ''
             class_agnostic = outputs['enc_meta']['class_agnostic']
@@ -306,15 +298,13 @@ class RTDETRCriterionv2(nn.Module):
             if class_agnostic:
                 self.num_classes = orig_num_classes
                 
-        # In case of cdn auxiliary losses. For rtdetr
+        # In case of cdn auxiliary losses. For dfine
         if 'dn_outputs' in outputs:
             assert 'dn_meta' in outputs, ''
             indices = self.get_cdn_matched_indices(outputs['dn_meta'], targets)
             dn_num_boxes = num_boxes * outputs['dn_meta']['dn_num_group']
             for i, aux_outputs in enumerate(outputs['dn_outputs']):
                 aux_outputs['is_dn'] = True
-                aux_outputs['scale_factor'] = 0.5 ** i
-                aux_outputs['dn_num_group'] = outputs['dn_meta']['dn_num_group']
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices)
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices, dn_num_boxes, **meta)
@@ -383,32 +373,14 @@ class RTDETRCriterionv2(nn.Module):
         return dn_match_indices
 
 
-    def distribution_focal_loss(self, pred, label, reg_max, weight_right, weight_left, weight=None, reduction='sum', avg_factor=None):
-        r"""Distribution Focal Loss (DFL) is from `Generalized Focal Loss: Learning
-        Qualified and Distributed Bounding Boxes for Dense Object Detection
-        <https://arxiv.org/abs/2006.04388>`_.
-        Args:
-            pred (torch.Tensor): Predicted general distribution of bounding boxes
-                (before softmax) with shape (N, n+1), n is the max value of the
-                integral set `{0, ..., n}` in paper.
-            label (torch.Tensor): Target distance label for bounding boxes with
-                shape (N,).
-            weight (torch.Tensor, optional): The weight of loss for each prediction.
-                Defaults to None.
-            reduction (str, optional): The reduction method to apply to the output.
-                Defaults to 'mean'.
-            avg_factor (int, optional): Average factor that is used to average the loss.
-                Defaults to None.
-        Returns:
-            torch.Tensor: Loss tensor with shape (N,).
-        """
+    def unimodal_distribution_focal_loss(self, pred, label, weight_right, weight_left, weight=None, reduction='sum', avg_factor=None):
         dis_left = label.long()
         dis_right = dis_left + 1
-        dis_left[label > reg_max//2] = reg_max // 2
-        dis_right[label < reg_max//2] = reg_max // 2
-     
-        loss = F.cross_entropy(pred, dis_left, reduction='none') * weight_left.reshape(-1) \
-            + F.cross_entropy(pred, dis_right, reduction='none') * weight_right.reshape(-1)
+        dis_left[label > self.reg_max//2] = self.reg_max // 2
+        dis_right[label < self.reg_max//2] = self.reg_max // 2
+
+        loss = 0.1 * (F.cross_entropy(pred, dis_left, reduction='none') * weight_left.reshape(-1) \
+            + F.cross_entropy(pred, dis_right, reduction='none') * weight_right.reshape(-1))
 
         if weight is not None:
             weight = weight.float()

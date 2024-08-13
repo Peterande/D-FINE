@@ -18,12 +18,8 @@ from .utils import bias_init_with_prob
 
 from ...core import register
 
-__all__ = ['RTDETRTransformerv2']
+__all__ = ['DFINETransformer']
 
-ss = 32
-up = 0.5
-tt = (up * ss // 8 + 1) ** (2 / ss)
-wide_scale = 2
 
 def box_xyxy_to_cxcywh(x):
     x0, y0, x1, y1 = x.unbind(-1)
@@ -32,16 +28,21 @@ def box_xyxy_to_cxcywh(x):
     return torch.stack(b, dim=-1)
 
 
-def get_index_in_sequence_tensor(values, base, start_power):
+def get_index_in_sequence_tensor(values, base, reg_max):
+    reg_scale = reg_max // 8
     indices = torch.empty_like(values, dtype=torch.float)
-
+    start_power = reg_max // 2
     zero_mask = (values == 0)
-    positive_mask = (values > 0)
-    negative_mask = (values < 0)
+    positive_mask = (values > 0) & (values <= 0.5 * reg_scale)
+    negative_mask = (values < 0) & (values >= -0.5 * reg_scale)
+    pos_outrange_mask = (values > 0.5 * reg_scale)
+    neg_outrange_mask = (values < -0.5 * reg_scale)
 
     indices[zero_mask] = start_power
     indices[negative_mask] = start_power - torch.log(-values[negative_mask] + 1) / math.log(base)
     indices[positive_mask] = start_power + torch.log(values[positive_mask] + 1) / math.log(base)
+    indices[pos_outrange_mask] = reg_max
+    indices[neg_outrange_mask] = 0
 
     pos_weight_right = values[positive_mask] / (base ** (indices[positive_mask].long() + 1 - start_power) - 1)
     pos_weight_left = 1 - pos_weight_right
@@ -49,6 +50,12 @@ def get_index_in_sequence_tensor(values, base, start_power):
 
     neg_weight_left = -values[negative_mask] / (base ** (start_power - indices[negative_mask].long()) - 1)
     neg_weight_right = 1 - neg_weight_left
+    
+    pos_outrange_weight_right = (values[pos_outrange_mask] / reg_scale).clamp(0, 1)
+    pos_outrange_weight_left = 1 - pos_outrange_weight_right
+    
+    neg_outrange_weight_left = (-values[neg_outrange_mask] / reg_scale).clamp(0, 1)
+    neg_outrange_weight_right = 1 - neg_outrange_weight_left
     
     weight_right, weight_left = torch.zeros_like(indices), torch.zeros_like(indices)
     
@@ -58,14 +65,21 @@ def get_index_in_sequence_tensor(values, base, start_power):
     weight_right[negative_mask] = neg_weight_right
     weight_left[negative_mask] = neg_weight_left
     
+    weight_right[pos_outrange_mask] = pos_outrange_weight_right
+    weight_left[pos_outrange_mask] = pos_outrange_weight_left
+    
+    weight_right[neg_outrange_mask] = neg_outrange_weight_right
+    weight_left[neg_outrange_mask] = neg_outrange_weight_left
 
     return indices, weight_right, weight_left
 
    
-def generate_linspace(step, reg_max):
-    left_values = [-(step) ** i + 1 for i in range(reg_max // 2, 0, -1)]
-    right_values = [(step) ** i - 1 for i in range(1, reg_max // 2 + 1)]
-    values = left_values + [0] + right_values
+def generate_linspace(reg_max):
+    reg_scale = reg_max // 8
+    step = (0.5 * reg_scale + 1) ** (2 / (reg_max - 2))
+    left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
+    right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
+    values = [-reg_scale] + left_values + [0] + right_values + [reg_scale]
     return torch.tensor(values)
 
 
@@ -83,7 +97,7 @@ class Integral(nn.Module):
     def __init__(self, reg_max=16):
         super(Integral, self).__init__()
         self.reg_max = reg_max
-        self.project = generate_linspace(tt, self.reg_max)
+        self.project = generate_linspace(self.reg_max)
 
     def forward(self, x):
         """Forward feature from the regression head to get integral result of
@@ -101,7 +115,7 @@ class Integral(nn.Module):
         return x.reshape(list(shape[:-1]) + [-1])
 
 
-def distance2bbox(points, distance, reg_scale):
+def distance2bbox(points, distance, reg_max):
     """Decode distance prediction to bounding box.
 
     Args:
@@ -112,6 +126,7 @@ def distance2bbox(points, distance, reg_scale):
     Returns:
         Tensor: Boxes with shape (N, 4) or (B, N, 4)
     """
+    reg_scale = reg_max // 8
     x1 = points[..., 0] - (0.5 * reg_scale + distance[..., 0]) * (points[..., 2] / reg_scale)
     y1 = points[..., 1] - (0.5 * reg_scale + distance[..., 1]) * (points[..., 3] / reg_scale)
     x2 = points[..., 0] + (0.5 * reg_scale + distance[..., 2]) * (points[..., 2] / reg_scale)
@@ -122,7 +137,7 @@ def distance2bbox(points, distance, reg_scale):
     return bboxes
 
 
-def bbox2distance(points, bbox, reg_scale, reg_max=None, eps=0.1):
+def bbox2distance(points, bbox, reg_max=None, eps=0.1):
     """Decode bounding box based on distances.
 
     Args:
@@ -134,12 +149,14 @@ def bbox2distance(points, bbox, reg_scale, reg_max=None, eps=0.1):
     Returns:
         Tensor: Decoded distances.
     """
+    reg_scale = reg_max // 8
     left = (points[:, 0] - bbox[:, 0]) / (points[..., 2] / reg_scale + 1e-16) - 0.5 * reg_scale
     top = (points[:, 1] - bbox[:, 1]) / (points[..., 3] / reg_scale + 1e-16) - 0.5 * reg_scale
     right = (bbox[:, 2] - points[:, 0]) / (points[..., 2] / reg_scale + 1e-16) - 0.5 * reg_scale
     bottom = (bbox[:, 3] - points[:, 1]) / (points[..., 3] / reg_scale + 1e-16) - 0.5 * reg_scale
     four_lens = torch.stack([left, top, right, bottom], -1)
-    four_lens, weight_right, weight_left = get_index_in_sequence_tensor(four_lens, tt, reg_max//2)
+    base = (0.5 * reg_max // 8 + 1) ** (2 / (reg_max - 2))
+    four_lens, weight_right, weight_left = get_index_in_sequence_tensor(four_lens, base, reg_max)
     if reg_max is not None:
         four_lens = four_lens.clamp(min=0, max=reg_max-eps)
     return four_lens, weight_right, weight_left
@@ -298,15 +315,16 @@ class TransformerDecoderLayer(nn.Module):
                  n_levels=4,
                  n_points=4,
                  cross_attn_method='default',
-                 d_model_wide=None):
+                 last_layer_dim=None):
         super(TransformerDecoderLayer, self).__init__()
-        if d_model_wide is not None and d_model_wide > d_model:
-            self.proj = nn.Linear(d_model, d_model_wide)
-            d_model_in = d_model
-            dim_feedforward = d_model_wide * dim_feedforward // d_model
-            d_model = d_model_wide
+        if last_layer_dim is not None:
+            self.last_layer_scale = last_layer_dim // d_model
+            self.proj = nn.Linear(d_model, last_layer_dim)
+            d_model_init = d_model
+            dim_feedforward = last_layer_dim * dim_feedforward // d_model
+            d_model = last_layer_dim
         else:
-            d_model_in = None
+            d_model_init = None
             
         # self attention
         self.self_attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
@@ -315,7 +333,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # cross attention
         self.cross_attn = MSDeformableAttention(d_model, n_head, n_levels, n_points, \
-                                                method=cross_attn_method, d_model_in=d_model_in)
+                                                method=cross_attn_method, d_model_in=d_model_init)
         self.dropout2 = nn.Dropout(dropout)
 
         # gate
@@ -351,7 +369,7 @@ class TransformerDecoderLayer(nn.Module):
                 query_pos_embed=None):
         if hasattr(self, 'proj'):
             target = self.proj(target)
-            query_pos_embed = F.interpolate(query_pos_embed, scale_factor=wide_scale)
+            query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.last_layer_scale)
             
         # self attention
         q = k = self.with_pos_embed(target, query_pos_embed)
@@ -395,16 +413,17 @@ class Gate(nn.Module):
     
         
 class LQE(nn.Module):
-    def __init__(self, k, hidden_dim, num_layers):
+    def __init__(self, k, hidden_dim, num_layers, reg_max):
         super(LQE, self).__init__()
         self.k = k
+        self.reg_max = reg_max
         self.reg_conf = MLP(4 * (k + 1), hidden_dim, 1, num_layers)
         init.constant_(self.reg_conf.layers[-1].bias, 0)
         init.constant_(self.reg_conf.layers[-1].weight, 0)
 
     def forward(self, scores, pred_corners):
         B, L, _ = pred_corners.size()
-        prob = F.softmax(pred_corners.reshape(B, L, 4, ss+1), dim=-1)
+        prob = F.softmax(pred_corners.reshape(B, L, 4, self.reg_max+1), dim=-1)
         prob_topk, _ = prob.topk(self.k, dim=-1)
         stat = torch.cat([prob_topk, prob_topk.mean(dim=-1, keepdim=True)], dim=-1)
         quality_score = self.reg_conf(stat.reshape(B, L, -1))
@@ -412,14 +431,16 @@ class LQE(nn.Module):
     
     
 class TransformerDecoder(nn.Module):
-    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, eval_idx=-1):
+    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, eval_idx=-1, last_layer_scale=2):
         super(TransformerDecoder, self).__init__()
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers-1)] \
                     + [copy.deepcopy(decoder_layer_wide)])
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
-        lqe_layer = LQE(4, 64, 2)
+        self.last_layer_scale = last_layer_scale
+        self.reg_max = reg_max
+        lqe_layer = LQE(4, 64, 2, reg_max)
         self.lqe_layers = nn.ModuleList([copy.deepcopy(lqe_layer) for _ in range(num_layers-1)])
     
     def detach(self, x):
@@ -457,13 +478,13 @@ class TransformerDecoder(nn.Module):
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
             if i+1 > self.eval_idx:
-                output_detach = F.interpolate(output_detach, scale_factor=wide_scale)
+                output_detach = F.interpolate(output_detach, scale_factor=self.last_layer_scale)
                 
             output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
             
             pred_corners = bbox_head[i][0](output + output_detach) + pred_corners_undetach
             outputs_coord_delta = bbox_head[i][1](pred_corners)
-            outputs_coord = distance2bbox(ref_points_inital, outputs_coord_delta, ss//8)
+            outputs_coord = distance2bbox(ref_points_inital, outputs_coord_delta, self.reg_max)
             inter_ref_bbox = box_xyxy_to_cxcywh(outputs_coord)
 
             if self.training or i+1 == self.eval_idx:
@@ -486,7 +507,7 @@ class TransformerDecoder(nn.Module):
 
 
 @register()
-class RTDETRTransformerv2(nn.Module):
+class DFINETransformer(nn.Module):
     __share__ = ['num_classes', 'eval_spatial_size']
 
     def __init__(self,
@@ -511,7 +532,9 @@ class RTDETRTransformerv2(nn.Module):
                  eps=1e-2, 
                  aux_loss=True, 
                  cross_attn_method='default', 
-                 query_select_method='default'):
+                 query_select_method='default',
+                 reg_max=32,
+                 last_layer_scale=2):
         super().__init__()
         assert len(feat_channels) <= num_levels
         assert len(feat_strides) == len(feat_channels)
@@ -529,7 +552,7 @@ class RTDETRTransformerv2(nn.Module):
         self.num_layers = num_layers
         self.eval_spatial_size = eval_spatial_size
         self.aux_loss = aux_loss
-        self.reg_max = ss
+        self.reg_max = reg_max
 
         assert query_select_method in ('default', 'one2many', 'agnostic'), ''
         assert cross_attn_method in ('default', 'discrete'), ''
@@ -543,8 +566,8 @@ class RTDETRTransformerv2(nn.Module):
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
-            activation, num_levels, num_points, cross_attn_method=cross_attn_method, d_model_wide=wide_scale*hidden_dim)
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, eval_idx)
+            activation, num_levels, num_points, cross_attn_method=cross_attn_method, last_layer_dim=round(last_layer_scale*hidden_dim))
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, eval_idx, last_layer_scale)
 
         # denoising
         self.num_denoising = num_denoising
@@ -580,13 +603,13 @@ class RTDETRTransformerv2(nn.Module):
         self.pre_score_head = nn.Linear(hidden_dim, num_classes)
         self.dec_score_head = nn.ModuleList(
             [nn.Linear(hidden_dim, num_classes) for _ in range(num_layers-2)
-        ]  + [nn.Linear(wide_scale * hidden_dim, num_classes)])
+        ]  + [nn.Linear(round(last_layer_scale*hidden_dim), num_classes)])
         self.pre_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
         self.dec_bbox_head = nn.ModuleList(
             [nn.Sequential(MLP(hidden_dim, hidden_dim, 4 * (self.reg_max+1), 3),
                                             Integral(self.reg_max))
             for _ in range(num_layers-2)
-        ] + [nn.Sequential(MLP(wide_scale * hidden_dim, wide_scale * hidden_dim, 4 * (self.reg_max+1), 3),
+        ] + [nn.Sequential(MLP(round(last_layer_scale*hidden_dim), round(last_layer_scale*hidden_dim), 4 * (self.reg_max+1), 3),
                                             Integral(self.reg_max))])
 
         # init encoder output anchors and valid_mask

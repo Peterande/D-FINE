@@ -12,11 +12,11 @@ from typing import List
 from ...core import register
 
 
-__all__ = ['RTDETR', ]
+__all__ = ['DFINE', ]
 
 
 @register()
-class RTDETR(nn.Module):
+class DFINE(nn.Module):
     __inject__ = ['backbone', 'encoder', 'decoder', ]
 
     def __init__(self, \

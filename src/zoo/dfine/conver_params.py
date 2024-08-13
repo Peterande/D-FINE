@@ -66,7 +66,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     main(args)
     
-    # python ./src/cvperception/zoo/rtdetr/conver_params.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -p rtdetr_r18vd_dec3_6x_coco.pdparams -o rtdetr_r18vd_dec3_6x_coco_new.pth
-    # python ./src/cvperception/zoo/rtdetr/conver_params.py -c configs/rtdetr/rtdetr_r18vd_6x_coco.yml -p rtdetr_r18vd_5x_coco_objects365.pdparams -o rtdetr_r18vd_5x_coco_objects365_new.pth
-    # python ./src/cvperception/zoo/rtdetr/conver_params.py -c configs/rtdetrv2/rtdetrv2_r50vd_120e_coco.yml -p rtdetr_r50vd_1x_objects365.pdparams -o rtdetrv2_r50vd_1x_objects365_new.pth -v 2
+    # python ./src/cvperception/zoo/dfine/conver_params.py -c configs/dfine/dfine_r18vd_6x_coco.yml -p dfine_r18vd_dec3_6x_coco.pdparams -o dfine_r18vd_dec3_6x_coco_new.pth
+    # python ./src/cvperception/zoo/dfine/conver_params.py -c configs/dfine/dfine_r18vd_6x_coco.yml -p dfine_r18vd_5x_coco_objects365.pdparams -o dfine_r18vd_5x_coco_objects365_new.pth
+    # python ./src/cvperception/zoo/dfine/conver_params.py -c configs/dfine/dfine_r50vd_120e_coco.yml -p dfine_r50vd_1x_objects365.pdparams -o dfine_r50vd_1x_objects365_new.pth -v 2
     

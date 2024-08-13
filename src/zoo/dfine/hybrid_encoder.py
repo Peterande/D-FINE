@@ -223,7 +223,7 @@ class HybridEncoder(nn.Module):
                  depth_mult=1.0,
                  act='silu',
                  eval_spatial_size=None, 
-                 version='v2'):
+                 ):
         super().__init__()
         self.in_channels = in_channels
         self.feat_strides = feat_strides
@@ -238,17 +238,11 @@ class HybridEncoder(nn.Module):
         # channel projection
         self.input_proj = nn.ModuleList()
         for in_channel in in_channels:
-            if version == 'v1':
-                proj = nn.Sequential(
-                    nn.Conv2d(in_channel, hidden_dim, kernel_size=1, bias=False),
-                    nn.BatchNorm2d(hidden_dim))
-            elif version == 'v2':
-                proj = nn.Sequential(OrderedDict([
+
+            proj = nn.Sequential(OrderedDict([
                     ('conv', nn.Conv2d(in_channel, hidden_dim, kernel_size=1, bias=False)),
                     ('norm', nn.BatchNorm2d(hidden_dim))
                 ]))
-            else:
-                raise AttributeError()
                 
             self.input_proj.append(proj)
 

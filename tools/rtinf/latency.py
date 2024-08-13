@@ -3,10 +3,10 @@ from matplotlib import rcParams
 
 # Set font family to Nimbus Roman No9L
 rcParams['font.family'] = 'Times New Roman'
-# /home/pengys/miniconda3/envs/rtdetr/lib/python3.9/site-packages/matplotlib/mpl-data/matplotlibrc
+# /home/pengys/miniconda3/envs/dfine/lib/python3.9/site-packages/matplotlib/mpl-data/matplotlibrc
 # 数据示例
 networks = ['Ours', 'YOLOv6-v3.0', 'YOLOv8', 'YOLOv10', 'YOLOV9',
-            'RT-DETR+HGNetV2', 'RT-DETR', 'RT-DETRv2', 'RT-DETR (Objects365)', 'Gold-YOLO']
+            'DFINE+HGNetV2', 'DFINE', 'DFINEv2', 'DFINE (Objects365)', 'Gold-YOLO']
 
 
 latency_data = [
@@ -17,10 +17,10 @@ latency_data = [
     [2.11, 2.24, 2.70, 3.19, 3.86],  # YOLOv8
     [0.92, 1.27, 1.53, 2.00, 2.18, 2.85],  # YOLOv10
     [2.6, 2.98, 4.05],  # YOLOv9
-    [2.55, 3.22],  # RT-DETR
-    [1.41, 1.83, 1.84, 2.48, 3.19],  # RT-DETR
-    [1.41, 1.83, 1.84, 2.48, 3.19],  # RT-DETRv2
-    [1.41, 2.48, 3.19],  # RT-DETR+Obj365
+    [2.55, 3.22],  # DFINE
+    [1.41, 1.83, 1.84, 2.48, 3.19],  # DFINE
+    [1.41, 1.83, 1.84, 2.48, 3.19],  # DFINEv2
+    [1.41, 2.48, 3.19],  # DFINE+Obj365
     [1.72, 1.91, 2.43, 3.05],  # Gold-YOLO-
     # [0.77, 0.92, 1.83, 2.63, 7.90],  # LW-DETR
 ]
@@ -33,10 +33,10 @@ coco_ap_data = [
     [37.3, 44.9, 50.2, 52.9, 53.9],  # YOLOv8
     [38.5, 46.3, 51.1, 52.5, 53.2, 54.4],  # YOLOv10
     [51.4, 53.0, 55.6],  # YOLOv9
-    [53.0, 54.8],  # RT-DETR*
-    [46.5, 48.9, 51.3, 53.1, 54.3],  # RT-DETR
-    [47.9, 49.9, 51.9, 53.4, 54.3],  # RT-DETRv2
-    [49.2, 55.4, 56.2],  # RT-DETR+Obj365
+    [53.0, 54.8],  # DFINE*
+    [46.5, 48.9, 51.3, 53.1, 54.3],  # DFINE
+    [47.9, 49.9, 51.9, 53.4, 54.3],  # DFINEv2
+    [49.2, 55.4, 56.2],  # DFINE+Obj365
     [39.9, 46.4, 51.1, 53.3],  # Gold-YOLO
     # [42.6, 48.0, 52.5, 56.1, 58.3]  # LW-DETR
 
@@ -86,5 +86,5 @@ ax.legend(fontsize=10, loc='lower right')
 
 # Save chart to file
 fig.tight_layout()
-plt.savefig('/home/pengys/code/rtdetrv2_pytorch/vis/performance_vs_latency.png')
+plt.savefig('/home/pengys/code/dfine_pytorch/vis/performance_vs_latency.png')
 print("图表已保存为 'performance_vs_latency.png'")

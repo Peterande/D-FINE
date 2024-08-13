@@ -457,7 +457,7 @@ class HGNetv2(nn.Module):
             self._freeze_norm(self)
 
         if pretrained:
-            prefix = '/home/pengys/code/rtdetrv2_pytorch/weight/hgnetv2/PPHGNetV2_'
+            prefix = 'weight/hgnetv2/PPHGNetV2_'
             stage1 = "stage1_"
             # stage1 = ""
             if stage1 == "":

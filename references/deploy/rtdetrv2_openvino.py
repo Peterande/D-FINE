@@ -2,4 +2,4 @@
 """
 
 
-# please reference: https://github.com/guojin-yan/RT-DETR-OpenVINO
+# please reference: https://github.com/guojin-yan/DFINE-OpenVINO

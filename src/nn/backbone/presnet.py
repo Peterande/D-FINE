@@ -212,7 +212,7 @@ class PResNet(nn.Module):
 
         if pretrained:
             if isinstance(pretrained, bool) or 'http' in pretrained:
-                state = torch.hub.load_state_dict_from_url(donwload_url[depth], map_location='cpu', model_dir='/home/pengys/code/rtdetrv2_pytorch/weight')
+                state = torch.hub.load_state_dict_from_url(donwload_url[depth], map_location='cpu', model_dir='weight')
             else:
                 state = torch.load(pretrained, map_location='cpu')
             self.load_state_dict(state)

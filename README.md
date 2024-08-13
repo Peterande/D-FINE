@@ -10,7 +10,7 @@ pip install -r requirements.txt
 ```
 
 The following is the corresponding `torch` and `torchvision` versions.
-`rtdetr` | `torch` | `torchvision`
+`dfine` | `torch` | `torchvision`
 |---|---|---|
 | `-` | `2.2` | `0.17` |
 | `-` | `2.1` | `0.16` |
@@ -26,17 +26,17 @@ The following is the corresponding `torch` and `torchvision` versions.
 
 | Model | Dataset | Input Size | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | config| checkpoint | 
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |:---: |
-**RT-DETRv2-S** | COCO | 640 | **47.9** <font color=green>(+1.4)</font> | **64.9** | 20 | 217 | [config](./configs/rtdetrv2/rtdetrv2_r18vd_120e_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_120e_coco.pth) |
-**RT-DETRv2-M** | COCO | 640 | **49.9** <font color=green>(+1.0)</font> | **67.5** | 31 | 161 | [config](./configs/rtdetrv2/rtdetrv2_r34vd_120e_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r34vd_120e_coco_ema.pth)
-**RT-DETRv2-M**<sup>*<sup> | COCO | 640 | **51.9** <font color=green>(+0.6)</font> | **69.9** | 36 | 145 | [config](./configs/rtdetrv2/rtdetrv2_r50vd_m_7x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r50vd_m_7x_coco_ema.pth)
-**RT-DETRv2-L** | COCO | 640 | **53.4** <font color=green>(+0.3)</font> | **71.6** | 42 | 108 | [config](./configs/rtdetrv2/rtdetrv2_r50vd_6x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r50vd_6x_coco_ema.pth)
-**RT-DETRv2-X** | COCO | 640 | 54.3 | **72.8** <font color=green>(+0.1)</font> | 76 | 74 | [config](./configs/rtdetrv2/rtdetrv2_r101vd_6x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r101vd_6x_coco_from_paddle.pth)
-<!-- rtdetrv2_hgnetv2_l | COCO | 640 | 52.9 | 71.5 | 32 | 114 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_hgnetv2_l_6x_coco_from_paddle.pth) 
-rtdetrv2_hgnetv2_x | COCO | 640 | 54.7 | 72.9 | 67 | 74 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_hgnetv2_x_6x_coco_from_paddle.pth) 
-rtdetrv2_hgnetv2_h | COCO | 640 | 56.3 | 74.8 | 123 | 40 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_hgnetv2_h_6x_coco_from_paddle.pth) 
-rtdetrv2_18vd | COCO+Objects365 | 640 | 49.0 | 66.5 | 20 | 217 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_5x_coco_objects365_from_paddle.pth)
-rtdetrv2_r50vd | COCO+Objects365 | 640 | 55.2 | 73.4 | 42 | 108 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r50vd_2x_coco_objects365_from_paddle.pth)
-rtdetrv2_r101vd | COCO+Objects365 | 640 | 56.2 | 74.5 | 76 | 74 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r101vd_2x_coco_objects365_from_paddle.pth)
+**DFINEv2-S** | COCO | 640 | **47.9** <font color=green>(+1.4)</font> | **64.9** | 20 | 217 | [config](./configs/dfine/dfine_r18vd_120e_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_120e_coco.pth) |
+**DFINEv2-M** | COCO | 640 | **49.9** <font color=green>(+1.0)</font> | **67.5** | 31 | 161 | [config](./configs/dfine/dfine_r34vd_120e_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r34vd_120e_coco_ema.pth)
+**DFINEv2-M**<sup>*<sup> | COCO | 640 | **51.9** <font color=green>(+0.6)</font> | **69.9** | 36 | 145 | [config](./configs/dfine/dfine_r50vd_m_7x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r50vd_m_7x_coco_ema.pth)
+**DFINEv2-L** | COCO | 640 | **53.4** <font color=green>(+0.3)</font> | **71.6** | 42 | 108 | [config](./configs/dfine/dfine_r50vd_6x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r50vd_6x_coco_ema.pth)
+**DFINEv2-X** | COCO | 640 | 54.3 | **72.8** <font color=green>(+0.1)</font> | 76 | 74 | [config](./configs/dfine/dfine_r101vd_6x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r101vd_6x_coco_from_paddle.pth)
+<!-- dfine_hgnetv2_l | COCO | 640 | 52.9 | 71.5 | 32 | 114 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_hgnetv2_l_6x_coco_from_paddle.pth) 
+dfine_hgnetv2_x | COCO | 640 | 54.7 | 72.9 | 67 | 74 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_hgnetv2_x_6x_coco_from_paddle.pth) 
+dfine_hgnetv2_h | COCO | 640 | 56.3 | 74.8 | 123 | 40 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_hgnetv2_h_6x_coco_from_paddle.pth) 
+dfine_18vd | COCO+Objects365 | 640 | 49.0 | 66.5 | 20 | 217 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_5x_coco_objects365_from_paddle.pth)
+dfine_r50vd | COCO+Objects365 | 640 | 55.2 | 73.4 | 42 | 108 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r50vd_2x_coco_objects365_from_paddle.pth)
+dfine_r101vd | COCO+Objects365 | 640 | 56.2 | 74.5 | 76 | 74 | [url<sup>*</sup>](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r101vd_2x_coco_objects365_from_paddle.pth)
  -->
 
 **Notes:**
@@ -50,15 +50,15 @@ rtdetrv2_r101vd | COCO+Objects365 | 640 | 56.2 | 74.5 | 76 | 74 | [url<sup>*</su
 
 | Model | Sampling Method | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | config| checkpoint 
 | :---: | :---: | :---: | :---: | :---: | :---: |
-**RT-DETRv2-S_dsp** | discrete_sampling | 47.4 | 64.8 <font color=red>(-0.1)</font> | [config](./configs/rtdetrv2/rtdetrv2_r18vd_dsp_3x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_dsp_3x_coco.pth)
-**RT-DETRv2-M_dsp** | discrete_sampling | 49.2 | 67.1 <font color=red>(-0.4)</font> | [config](./configs/rtdetrv2/rtdetrv2_r34vd_dsp_1x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rrtdetrv2_r34vd_dsp_1x_coco.pth)
-**RT-DETRv2-M**<sup>*</sup>**_dsp** | discrete_sampling | 51.4 | 69.7 <font color=red>(-0.2)</font> | [config](./configs/rtdetrv2/rtdetrv2_r50vd_m_dsp_3x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r50vd_m_dsp_3x_coco.pth)
-**RT-DETRv2-L_dsp** | discrete_sampling | 52.9 | 71.3 <font color=red>(-0.3)</font> |[config](./configs/rtdetrv2/rtdetrv2_r50vd_dsp_1x_coco.yml)| [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r50vd_dsp_1x_coco.pth)
+**DFINEv2-S_dsp** | discrete_sampling | 47.4 | 64.8 <font color=red>(-0.1)</font> | [config](./configs/dfine/dfine_r18vd_dsp_3x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_dsp_3x_coco.pth)
+**DFINEv2-M_dsp** | discrete_sampling | 49.2 | 67.1 <font color=red>(-0.4)</font> | [config](./configs/dfine/dfine_r34vd_dsp_1x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rdfine_r34vd_dsp_1x_coco.pth)
+**DFINEv2-M**<sup>*</sup>**_dsp** | discrete_sampling | 51.4 | 69.7 <font color=red>(-0.2)</font> | [config](./configs/dfine/dfine_r50vd_m_dsp_3x_coco.yml) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r50vd_m_dsp_3x_coco.pth)
+**DFINEv2-L_dsp** | discrete_sampling | 52.9 | 71.3 <font color=red>(-0.3)</font> |[config](./configs/dfine/dfine_r50vd_dsp_1x_coco.yml)| [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r50vd_dsp_1x_coco.pth)
 
 
-<!-- **rtdetrv2_r18vd_dsp1** | discrete_sampling | 21600 | 46.3 | 63.9 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_dsp1_1x_coco.pth) -->
+<!-- **dfine_r18vd_dsp1** | discrete_sampling | 21600 | 46.3 | 63.9 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_dsp1_1x_coco.pth) -->
 
-<!-- rtdetrv2_r18vd_dsp1 | discrete_sampling | 21600 | 45.5 | 63.0 | 4.34 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_dsp1_120e_coco.pth) -->
+<!-- dfine_r18vd_dsp1 | discrete_sampling | 21600 | 45.5 | 63.0 | 4.34 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_dsp1_120e_coco.pth) -->
 <!-- 4.3 -->
 
 **Notes:**
@@ -73,10 +73,10 @@ rtdetrv2_r101vd | COCO+Objects365 | 640 | 56.2 | 74.5 | 76 | 74 | [url<sup>*</su
 
 | Model | Sampling Method | #Points | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | checkpoint 
 | :---: | :---: | :---: | :---: | :---: | :---: |
-**rtdetrv2_r18vd_sp1** | grid_sampling | 21,600 | 47.3 | 64.3 <font color=red>(-0.6) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_sp1_120e_coco.pth)
-**rtdetrv2_r18vd_sp2** | grid_sampling | 43,200 | 47.7 | 64.7 <font color=red>(-0.2) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_sp2_120e_coco.pth)
-**rtdetrv2_r18vd_sp3** | grid_sampling | 64,800 | 47.8 | 64.8 <font color=red>(-0.1) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_sp3_120e_coco.pth)
-rtdetrv2_r18vd(_sp4)| grid_sampling | 86,400 | 47.9 | 64.9 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/rtdetrv2_r18vd_120e_coco.pth) 
+**dfine_r18vd_sp1** | grid_sampling | 21,600 | 47.3 | 64.3 <font color=red>(-0.6) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_sp1_120e_coco.pth)
+**dfine_r18vd_sp2** | grid_sampling | 43,200 | 47.7 | 64.7 <font color=red>(-0.2) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_sp2_120e_coco.pth)
+**dfine_r18vd_sp3** | grid_sampling | 64,800 | 47.8 | 64.8 <font color=red>(-0.1) | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_sp3_120e_coco.pth)
+dfine_r18vd(_sp4)| grid_sampling | 86,400 | 47.9 | 64.9 | [url](https://github.com/lyuwenyu/storage/releases/download/v0.1/dfine_r18vd_120e_coco.pth) 
 
 **Notes:**
 - The impact on inference speed is related to specific device and software.
@@ -116,16 +116,16 @@ python tools/export_onnx.py -c path/to/config -r path/to/checkpoint --check
 
 Support torch, onnxruntime, tensorrt and openvino, see details in *references/deploy*
 ```shell
-python references/deploy/rtdetrv2_onnx.py --onnx-file=model.onnx --im-file=xxxx
-python references/deploy/rtdetrv2_tensorrt.py --trt-file=model.trt --im-file=xxxx
-python references/deploy/rtdetrv2_torch.py -c path/to/config -r path/to/checkpoint --im-file=xxx --device=cuda:0
+python references/deploy/dfine_onnx.py --onnx-file=model.onnx --im-file=xxxx
+python references/deploy/dfine_tensorrt.py --trt-file=model.trt --im-file=xxxx
+python references/deploy/dfine_torch.py -c path/to/config -r path/to/checkpoint --im-file=xxx --device=cuda:0
 ```
 </details>
 
 
 
 ## Citation
-If you use `RTDETR` or `RTDETRv2` in your work, please use the following BibTeX entries:
+If you use `DFINE` or `DFINEv2` in your work, please use the following BibTeX entries:
 
 <details>
 <summary> bibtex </summary>
@@ -140,8 +140,8 @@ If you use `RTDETR` or `RTDETRv2` in your work, please use the following BibTeX 
       primaryClass={cs.CV}
 }
 
-@misc{lv2024rtdetrv2improvedbaselinebagoffreebies,
-      title={RT-DETRv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformer}, 
+@misc{lv2024dfineimprovedbaselinebagoffreebies,
+      title={DFINEv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformer}, 
       author={Wenyu Lv and Yian Zhao and Qinyao Chang and Kui Huang and Guanzhong Wang and Yi Liu},
       year={2024},
       eprint={2407.17140},

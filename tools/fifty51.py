@@ -169,9 +169,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', '-c', type=str, default= \
-                        "/home/pengys/code/rtdetrv2_pytorch/configs/rtdetrv2/rtdetrv2_hgnetv2_b4_6x_coco.yml")
+                        "/home/pengys/code/dfine_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml")
     parser.add_argument('--resume', '-r', type=str, default= \
-                        "/home/pengys/code/rtdetrv2_pytorch/log/merge+allious/best.pth")
+                        "/home/pengys/code/dfine_pytorch/log/merge+allious/best.pth")
     args = parser.parse_args()
 
     main(args)

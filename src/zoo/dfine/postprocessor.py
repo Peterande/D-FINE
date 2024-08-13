@@ -10,7 +10,7 @@ import torchvision
 from ...core import register
 
 
-__all__ = ['RTDETRPostProcessor']
+__all__ = ['DFINEPostProcessor']
 
 
 def mod(a, b):
@@ -19,7 +19,7 @@ def mod(a, b):
 
 
 @register()
-class RTDETRPostProcessor(nn.Module):
+class DFINEPostProcessor(nn.Module):
     __share__ = [
         'num_classes', 
         'use_focal_loss', 
