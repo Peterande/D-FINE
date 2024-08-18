@@ -121,6 +121,9 @@ class CustomModel(fom.Model):
         return converted_predictions
 
 def main(args):
+    print("Shutting down session")
+    if 'session' in locals():
+        session.close()
     try:
         dataset = foz.load_zoo_dataset(
             "coco-2017",
@@ -144,7 +147,7 @@ def main(args):
         cfg.model.load_state_dict(state)
 
         model = CustomModel(cfg)
-        predictions_view = dataset.take(100, seed=51)
+        predictions_view = dataset.take(1000, seed=51)
         predictions_view.apply_model(model, label_field="predictions")
         high_conf_view = predictions_view.filter_labels("predictions", F("confidence") > 0.5, only_matches=False)
         results = high_conf_view.evaluate_detections(
@@ -169,9 +172,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', '-c', type=str, default= \
-                        "/home/pengys/code/dfine_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml")
+                        "/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml")
     parser.add_argument('--resume', '-r', type=str, default= \
-                        "/home/pengys/code/dfine_pytorch/log/merge+allious/best.pth")
+                        "/home/pengys/code/rtdetrv2_pytorch/log/dfine/best.pth")
     args = parser.parse_args()
 
     main(args)

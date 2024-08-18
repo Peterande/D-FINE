@@ -20,7 +20,6 @@ from ...core import register
 
 __all__ = ['DFINETransformer']
 
-
 def box_xyxy_to_cxcywh(x):
     x0, y0, x1, y1 = x.unbind(-1)
     b = [(x0 + x1) / 2, (y0 + y1) / 2,
@@ -28,34 +27,43 @@ def box_xyxy_to_cxcywh(x):
     return torch.stack(b, dim=-1)
 
 
-def get_index_in_sequence_tensor(values, base, reg_max):
-    reg_scale = reg_max // 8
+def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
+    upper_bound1 = (abs(up[0]) * reg_scale).item()
+    upper_bound2 = (abs(up[0]) * (1 + 2 * up[1].sigmoid()) * reg_scale).item()
+    base = (upper_bound1 + 1) ** (2 / (reg_max - 2))
     indices = torch.empty_like(values, dtype=torch.float)
     start_power = reg_max // 2
     zero_mask = (values == 0)
-    positive_mask = (values > 0) & (values <= 0.5 * reg_scale)
-    negative_mask = (values < 0) & (values >= -0.5 * reg_scale)
-    pos_outrange_mask = (values > 0.5 * reg_scale)
-    neg_outrange_mask = (values < -0.5 * reg_scale)
+    positive_mask = (values > 0) & (values <= upper_bound1)
+    negative_mask = (values < 0) & (values >= -upper_bound1)
+    pos_outrange_mask = (values > upper_bound1)
+    neg_outrange_mask = (values < -upper_bound1)
 
     indices[zero_mask] = start_power
     indices[negative_mask] = start_power - torch.log(-values[negative_mask] + 1) / math.log(base)
     indices[positive_mask] = start_power + torch.log(values[positive_mask] + 1) / math.log(base)
-    indices[pos_outrange_mask] = reg_max
+    indices[pos_outrange_mask] = reg_max - 0.1
     indices[neg_outrange_mask] = 0
-
-    pos_weight_right = values[positive_mask] / (base ** (indices[positive_mask].long() + 1 - start_power) - 1)
+    
+    pos_right_dif = (base ** (indices[positive_mask].long() + 1 - start_power) - 1) - values[positive_mask]
+    pos_left_dif = values[positive_mask] - (base ** (indices[positive_mask].long() - start_power) - 1)
+    pos_weight_right = pos_left_dif / (pos_right_dif + pos_left_dif)
     pos_weight_left = 1 - pos_weight_right
     
-
-    neg_weight_left = -values[negative_mask] / (base ** (start_power - indices[negative_mask].long()) - 1)
-    neg_weight_right = 1 - neg_weight_left
+    neg_right_dif = -values[negative_mask] - (base ** (start_power - indices[negative_mask].long() - 1) - 1)
+    neg_left_dif = (base ** (start_power - indices[negative_mask].long()) - 1) - (-values[negative_mask])
+    neg_weight_right = neg_left_dif / (neg_right_dif + neg_left_dif)
+    neg_weight_left = 1 - neg_weight_right 
     
-    pos_outrange_weight_right = (values[pos_outrange_mask] / reg_scale).clamp(0, 1)
-    pos_outrange_weight_left = 1 - pos_outrange_weight_right
+    outrange_pos_right_dif = upper_bound2 - values[pos_outrange_mask]
+    outrange_pos_left_dif = values[pos_outrange_mask] - (base ** (start_power - 1) - 1)
+    outrange_pos_weight_right = outrange_pos_left_dif / (outrange_pos_left_dif + outrange_pos_right_dif.clamp(0, 1))
+    outrange_pos_weight_left = 1 - outrange_pos_weight_right
     
-    neg_outrange_weight_left = (-values[neg_outrange_mask] / reg_scale).clamp(0, 1)
-    neg_outrange_weight_right = 1 - neg_outrange_weight_left
+    outrange_neg_right_dif = -values[neg_outrange_mask] - (base ** (start_power - 1) - 1)
+    outrange_neg_left_dif = upper_bound2 - (-values[neg_outrange_mask])
+    outrange_neg_weight_left = outrange_neg_right_dif / (outrange_neg_right_dif + outrange_neg_left_dif.clamp(0, 1))
+    outrange_neg_weight_right = 1 - outrange_neg_weight_left
     
     weight_right, weight_left = torch.zeros_like(indices), torch.zeros_like(indices)
     
@@ -65,23 +73,31 @@ def get_index_in_sequence_tensor(values, base, reg_max):
     weight_right[negative_mask] = neg_weight_right
     weight_left[negative_mask] = neg_weight_left
     
-    weight_right[pos_outrange_mask] = pos_outrange_weight_right
-    weight_left[pos_outrange_mask] = pos_outrange_weight_left
+    weight_right[pos_outrange_mask] = outrange_pos_weight_right
+    weight_left[pos_outrange_mask] = outrange_pos_weight_left
     
-    weight_right[neg_outrange_mask] = neg_outrange_weight_right
-    weight_left[neg_outrange_mask] = neg_outrange_weight_left
+    weight_right[neg_outrange_mask] = outrange_neg_weight_right
+    weight_left[neg_outrange_mask] = outrange_neg_weight_left
 
     return indices, weight_right, weight_left
 
-   
-def generate_linspace(reg_max):
-    reg_scale = reg_max // 8
-    step = (0.5 * reg_scale + 1) ** (2 / (reg_max - 2))
+
+def generate_linspace(reg_max, up, reg_scale):
+    upper_bound1 = abs(up[0]) * abs(reg_scale)
+    upper_bound2 = abs(up[0]) * (1 + 2 * up[1].sigmoid()) * abs(reg_scale)
+    step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
     left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
     right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
-    values = [-reg_scale] + left_values + [0] + right_values + [reg_scale]
-    return torch.tensor(values)
+    values = [-upper_bound2] + left_values + [torch.zeros_like(up[0][None])] + right_values + [upper_bound2]
+    return torch.cat(values, 0)
 
+
+# def generate_linspace(reg_max, up, reg_scale):
+#     step = (up * reg_scale + 1) ** (2 / reg_max)
+#     left_values = [-(step) ** i + 1 for i in range(reg_max // 2, 0, -1)]
+#     right_values = [(step) ** i - 1 for i in range(1, reg_max // 2 + 1)]
+#     values = left_values + [torch.zeros_like(up[0][None])] + right_values
+#     return torch.cat(values, 0)
 
 class Integral(nn.Module):
     """A fixed layer for calculating integral result from distribution.
@@ -97,9 +113,8 @@ class Integral(nn.Module):
     def __init__(self, reg_max=16):
         super(Integral, self).__init__()
         self.reg_max = reg_max
-        self.project = generate_linspace(self.reg_max)
 
-    def forward(self, x):
+    def forward(self, x, project):
         """Forward feature from the regression head to get integral result of
         bounding box location.
         Args:
@@ -111,11 +126,11 @@ class Integral(nn.Module):
         """
         shape = x.shape
         x = F.softmax(x.reshape(-1, self.reg_max + 1), dim=1)
-        x = F.linear(x, self.project.type_as(x)).reshape(-1, 4)
+        x = F.linear(x, project.type_as(x)).reshape(-1, 4)
         return x.reshape(list(shape[:-1]) + [-1])
 
 
-def distance2bbox(points, distance, reg_max):
+def distance2bbox(points, distance, reg_scale):
     """Decode distance prediction to bounding box.
 
     Args:
@@ -126,7 +141,7 @@ def distance2bbox(points, distance, reg_max):
     Returns:
         Tensor: Boxes with shape (N, 4) or (B, N, 4)
     """
-    reg_scale = reg_max // 8
+    reg_scale = abs(reg_scale)
     x1 = points[..., 0] - (0.5 * reg_scale + distance[..., 0]) * (points[..., 2] / reg_scale)
     y1 = points[..., 1] - (0.5 * reg_scale + distance[..., 1]) * (points[..., 3] / reg_scale)
     x2 = points[..., 0] + (0.5 * reg_scale + distance[..., 2]) * (points[..., 2] / reg_scale)
@@ -134,10 +149,10 @@ def distance2bbox(points, distance, reg_max):
 
     bboxes = torch.stack([x1, y1, x2, y2], -1)
         
-    return bboxes
+    return box_xyxy_to_cxcywh(bboxes)
 
 
-def bbox2distance(points, bbox, reg_max=None, eps=0.1):
+def bbox2distance(points, bbox, reg_max, reg_scale, up, eps=0.1):
     """Decode bounding box based on distances.
 
     Args:
@@ -149,17 +164,16 @@ def bbox2distance(points, bbox, reg_max=None, eps=0.1):
     Returns:
         Tensor: Decoded distances.
     """
-    reg_scale = reg_max // 8
+    reg_scale = abs(reg_scale)
     left = (points[:, 0] - bbox[:, 0]) / (points[..., 2] / reg_scale + 1e-16) - 0.5 * reg_scale
     top = (points[:, 1] - bbox[:, 1]) / (points[..., 3] / reg_scale + 1e-16) - 0.5 * reg_scale
     right = (bbox[:, 2] - points[:, 0]) / (points[..., 2] / reg_scale + 1e-16) - 0.5 * reg_scale
     bottom = (bbox[:, 3] - points[:, 1]) / (points[..., 3] / reg_scale + 1e-16) - 0.5 * reg_scale
     four_lens = torch.stack([left, top, right, bottom], -1)
-    base = (0.5 * reg_max // 8 + 1) ** (2 / (reg_max - 2))
-    four_lens, weight_right, weight_left = get_index_in_sequence_tensor(four_lens, base, reg_max)
+    four_lens, weight_right, weight_left = get_index_in_sequence_tensor(four_lens, reg_max, reg_scale, up)
     if reg_max is not None:
         four_lens = four_lens.clamp(min=0, max=reg_max-eps)
-    return four_lens, weight_right, weight_left
+    return four_lens.reshape(-1).detach(), weight_right.detach(), weight_left.detach()
 
   
 class MLP(nn.Module):
@@ -315,16 +329,14 @@ class TransformerDecoderLayer(nn.Module):
                  n_levels=4,
                  n_points=4,
                  cross_attn_method='default',
-                 last_layer_dim=None):
+                 layer_scale=None):
         super(TransformerDecoderLayer, self).__init__()
-        if last_layer_dim is not None:
-            self.last_layer_scale = last_layer_dim // d_model
-            self.proj = nn.Linear(d_model, last_layer_dim)
-            d_model_init = d_model
-            dim_feedforward = last_layer_dim * dim_feedforward // d_model
-            d_model = last_layer_dim
+        if layer_scale is not None:
+            d_model_in = d_model
+            dim_feedforward = round(layer_scale * dim_feedforward)
+            d_model = round(layer_scale * d_model)
         else:
-            d_model_init = None
+            d_model_in = None
             
         # self attention
         self.self_attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
@@ -333,7 +345,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # cross attention
         self.cross_attn = MSDeformableAttention(d_model, n_head, n_levels, n_points, \
-                                                method=cross_attn_method, d_model_in=d_model_init)
+                                                method=cross_attn_method, d_model_in=d_model_in)
         self.dropout2 = nn.Dropout(dropout)
 
         # gate
@@ -367,9 +379,6 @@ class TransformerDecoderLayer(nn.Module):
                 attn_mask=None,
                 memory_mask=None,
                 query_pos_embed=None):
-        if hasattr(self, 'proj'):
-            target = self.proj(target)
-            query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.last_layer_scale)
             
         # self attention
         q = k = self.with_pos_embed(target, query_pos_embed)
@@ -431,18 +440,32 @@ class LQE(nn.Module):
     
     
 class TransformerDecoder(nn.Module):
-    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, eval_idx=-1, last_layer_scale=2):
+    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, reg_scale, up,
+                 eval_idx=-1, layer_scale=2):
         super(TransformerDecoder, self).__init__()
-        self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(num_layers-1)] \
-                    + [copy.deepcopy(decoder_layer_wide)])
+        self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+        self.pre_layer = copy.deepcopy(decoder_layer)
+        self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx)] \
+                    + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
-        self.last_layer_scale = last_layer_scale
+        self.layer_scale = layer_scale
         self.reg_max = reg_max
         lqe_layer = LQE(4, 64, 2, reg_max)
         self.lqe_layers = nn.ModuleList([copy.deepcopy(lqe_layer) for _ in range(num_layers-1)])
+        if layer_scale > 1:
+            self.proj = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
+        self.init_pred_corners = nn.Parameter(torch.zeros((1, 4 * (reg_max + 1))), requires_grad=True)
+        if not self.training:
+            self.project = generate_linspace(self.reg_max, up, reg_scale)
+
+    def convert_to_deploy(self):
+        self.layers = self.layers[:self.eval_idx]
+        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx - 1) + [self.lqe_layers[self.eval_idx - 1]])
+        if hasattr(self, 'proj'):
+            self.__delattr__('proj')
     
+
     def detach(self, x):
         return x.detach() if self.training else x
     
@@ -456,6 +479,9 @@ class TransformerDecoder(nn.Module):
                 pre_bbox_head,
                 pre_score_head,
                 query_pos_head,
+                integral,
+                up,
+                reg_scale,
                 attn_mask=None,
                 memory_mask=None):
         output = target
@@ -464,28 +490,34 @@ class TransformerDecoder(nn.Module):
         dec_out_pred_corners = []
         refs = []
         ref_points_detach = F.sigmoid(ref_points_unact)
-        pred_corners_undetach = 0
+        pred_corners_undetach = self.init_pred_corners.expand(target.size(0), target.size(1), -1)
         
         ref_points_input = ref_points_detach.unsqueeze(2)
         query_pos_embed = query_pos_head(ref_points_detach)    
-        output = self.layers[0](output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)    
+        output = self.pre_layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)    
         pre_logits = pre_score_head(output) if self.training else None
         pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
         ref_points_detach = ref_points_inital = self.detach(pre_bboxes)
         output_detach = self.detach(output)
-            
-        for i, layer in enumerate(self.layers[1:]):
+        if not hasattr(self, 'project'):
+            project = generate_linspace(self.reg_max, up, reg_scale)  
+        else:
+            project = self.project  
+
+        for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
-            if i+1 > self.eval_idx:
-                output_detach = F.interpolate(output_detach, scale_factor=self.last_layer_scale)
+            if i == self.eval_idx and self.layer_scale > 1:
+                output_detach = F.interpolate(output_detach, scale_factor=self.layer_scale)
+                output = self.proj(output)
+            if i >= self.eval_idx and self.layer_scale > 1:
+                query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.layer_scale)
                 
             output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
             
-            pred_corners = bbox_head[i][0](output + output_detach) + pred_corners_undetach
-            outputs_coord_delta = bbox_head[i][1](pred_corners)
-            outputs_coord = distance2bbox(ref_points_inital, outputs_coord_delta, self.reg_max)
-            inter_ref_bbox = box_xyxy_to_cxcywh(outputs_coord)
+            pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
+            outputs_coord_delta = integral(pred_corners, project)
+            inter_ref_bbox = distance2bbox(ref_points_inital, outputs_coord_delta, reg_scale)
 
             if self.training or i+1 == self.eval_idx:
                 scores = score_head[i](output)
@@ -534,7 +566,7 @@ class DFINETransformer(nn.Module):
                  cross_attn_method='default', 
                  query_select_method='default',
                  reg_max=32,
-                 last_layer_scale=2):
+                 layer_scale=2):
         super().__init__()
         assert len(feat_channels) <= num_levels
         assert len(feat_strides) == len(feat_channels)
@@ -543,6 +575,7 @@ class DFINETransformer(nn.Module):
             feat_strides.append(feat_strides[-1] * 2)
 
         self.hidden_dim = hidden_dim
+        scaled_dim = round(layer_scale*hidden_dim)
         self.nhead = nhead
         self.feat_strides = feat_strides
         self.num_levels = num_levels
@@ -563,11 +596,14 @@ class DFINETransformer(nn.Module):
         self._build_input_proj_layer(feat_channels)
         
         # Transformer module
+        self.up = nn.Parameter(torch.tensor([1., 0.]), requires_grad=True)
+        self.reg_scale = nn.Parameter(reg_max // 10 * torch.ones([1]), requires_grad=True)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
-            activation, num_levels, num_points, cross_attn_method=cross_attn_method, last_layer_dim=round(last_layer_scale*hidden_dim))
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, eval_idx, last_layer_scale)
+            activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale)
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, 
+                                          reg_max, self.reg_scale, self.up, eval_idx, layer_scale)
 
         # denoising
         self.num_denoising = num_denoising
@@ -601,16 +637,15 @@ class DFINETransformer(nn.Module):
         
         # decoder head
         self.pre_score_head = nn.Linear(hidden_dim, num_classes)
+        self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
         self.dec_score_head = nn.ModuleList(
-            [nn.Linear(hidden_dim, num_classes) for _ in range(num_layers-2)
-        ]  + [nn.Linear(round(last_layer_scale*hidden_dim), num_classes)])
+            [nn.Linear(hidden_dim, num_classes) for _ in range(self.eval_idx)] 
+          + [nn.Linear(scaled_dim, num_classes) for _ in range(num_layers - self.eval_idx - 1)])
         self.pre_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
         self.dec_bbox_head = nn.ModuleList(
-            [nn.Sequential(MLP(hidden_dim, hidden_dim, 4 * (self.reg_max+1), 3),
-                                            Integral(self.reg_max))
-            for _ in range(num_layers-2)
-        ] + [nn.Sequential(MLP(round(last_layer_scale*hidden_dim), round(last_layer_scale*hidden_dim), 4 * (self.reg_max+1), 3),
-                                            Integral(self.reg_max))])
+            [MLP(hidden_dim, hidden_dim, 4 * (self.reg_max+1), 3) for _ in range(self.eval_idx)] 
+          + [MLP(scaled_dim, scaled_dim, 4 * (self.reg_max+1), 3) for _ in range(num_layers - self.eval_idx - 1)])
+        self.integral = Integral(self.reg_max)
 
         # init encoder output anchors and valid_mask
         if self.eval_spatial_size:
@@ -622,7 +657,11 @@ class DFINETransformer(nn.Module):
             self.anchors, self.valid_mask = self._generate_anchors()
         
         self._reset_parameters()
-       
+
+    def convert_to_deploy(self):
+        self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx - 1) + [self.dec_score_head[self.eval_idx - 1]])
+        self.pre_score_head = nn.Identity()
+
     def _reset_parameters(self):
         bias = bias_init_with_prob(0.01)
         init.constant_(self.enc_score_head.bias, bias)
@@ -635,8 +674,8 @@ class DFINETransformer(nn.Module):
         
         for cls_, reg_ in zip(self.dec_score_head, self.dec_bbox_head):
             init.constant_(cls_.bias, bias)
-            init.constant_(reg_[0].layers[-1].weight, 0)
-            init.constant_(reg_[0].layers[-1].bias, 0)
+            init.constant_(reg_.layers[-1].weight, 0)
+            init.constant_(reg_.layers[-1].bias, 0)
         
         init.xavier_uniform_(self.enc_output[0].weight)
         if self.learn_query_content:
@@ -825,6 +864,9 @@ class DFINETransformer(nn.Module):
             self.pre_bbox_head,
             self.pre_score_head,
             self.query_pos_head,
+            self.integral,
+            self.up,
+            self.reg_scale,
             attn_mask=attn_mask)
     
         if self.training and dn_meta is not None:
@@ -839,15 +881,18 @@ class DFINETransformer(nn.Module):
 
         enc_topk_logits_list.append(pre_logits)
         enc_topk_bboxes_list.append(pre_bboxes)
-        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 'ref_points': out_refs[-1]}
+        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
+               'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
 
         if self.training and self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], out_bboxes[-1], out_corners[-1], out_logits[-1])
+            out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], 
+                                                     out_refs[:-1], out_bboxes[-1], out_corners[-1], out_logits[-1])
             out['enc_aux_outputs'] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)
             out['enc_meta'] = {'class_agnostic': self.query_select_method == 'agnostic'}
             
             if dn_meta is not None:
-                out['dn_outputs'] = self._set_aux_loss2(dn_out_logits, dn_out_bboxes, dn_out_corners, dn_out_refs, dn_out_bboxes[-1], dn_out_corners[-1], dn_out_logits[-1])
+                out['dn_outputs'] = self._set_aux_loss2(dn_out_logits, dn_out_bboxes, dn_out_corners, 
+                                                        dn_out_refs, dn_out_bboxes[-1], dn_out_corners[-1], dn_out_logits[-1])
                 out['dn_meta'] = dn_meta
                 out['dn_aux_outputs'] = self._set_aux_loss([dn_pre_logits], [dn_pre_bboxes])
 

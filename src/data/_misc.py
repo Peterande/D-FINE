@@ -4,7 +4,7 @@
 import importlib.metadata
 from torch import Tensor 
 
-if importlib.metadata.version('torchvision') == '0.15.2':
+if '0.15.2' in importlib.metadata.version('torchvision'):
     import torchvision
     torchvision.disable_beta_transforms_warning()
 

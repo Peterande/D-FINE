@@ -261,10 +261,13 @@ class HybridEncoder(nn.Module):
         # top-down fpn
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
+        expan_dim = round(expansion * hidden_dim)
         for _ in range(len(in_channels) - 1, 0, -1):
-            self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act))
+            self.lateral_convs.append(
+                ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act)
+                )
             self.fpn_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim * 2), round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, expan_dim * 2, expan_dim // 2, round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
             )
 
@@ -279,7 +282,7 @@ class HybridEncoder(nn.Module):
                 )
             )
             self.pan_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim * 2), round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, expan_dim * 2, expan_dim // 2, round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
             )
 

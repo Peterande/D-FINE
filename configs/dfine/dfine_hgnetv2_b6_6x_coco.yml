@@ -1,0 +1,50 @@
+__include__: [
+  '../dataset/coco_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/dfine_r50vd.yml',
+]
+
+
+output_dir: ./output/dfine_hgnetv2_b6_6x_coco
+
+
+DFINE:
+  backbone: HGNetv2
+
+
+HGNetv2:
+  name: 'B6'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+
+
+HybridEncoder:
+  # intra
+  hidden_dim: 512
+  dim_feedforward: 2048
+  num_encoder_layers: 2
+
+DFINETransformer:
+  feat_channels: [512, 512, 512]
+  num_layers: 7
+  eval_idx: -2
+
+optimizer:
+  type: AdamW
+  params: 
+    - 
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.000002
+    - 
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+
+  lr: 0.0002
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
