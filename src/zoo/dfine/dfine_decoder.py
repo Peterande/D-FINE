@@ -29,7 +29,7 @@ def box_xyxy_to_cxcywh(x):
 
 def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
     upper_bound1 = (abs(up[0]) * reg_scale).item()
-    upper_bound2 = (abs(up[0]) * (1 + 2 * up[1].sigmoid()) * reg_scale).item()
+    upper_bound2 = (abs(up[0]) * reg_scale * (1 + abs(up[1]))).item()
     base = (upper_bound1 + 1) ** (2 / (reg_max - 2))
     indices = torch.empty_like(values, dtype=torch.float)
     start_power = reg_max // 2
@@ -84,7 +84,7 @@ def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
 
 def generate_linspace(reg_max, up, reg_scale):
     upper_bound1 = abs(up[0]) * abs(reg_scale)
-    upper_bound2 = abs(up[0]) * (1 + 2 * up[1].sigmoid()) * abs(reg_scale)
+    upper_bound2 = abs(up[0]) * abs(reg_scale) * (1 + abs(up[1]))
     step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
     left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
     right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
@@ -395,14 +395,14 @@ class TransformerDecoderLayer(nn.Module):
             memory_spatial_shapes, 
             memory_mask)
         
-        target = self.gateway(target, self.dropout2(target2))
+        target = target_aux = self.gateway(target, self.dropout2(target2))
         
         # ffn
         target2 = self.forward_ffn(target)
         target = target + self.dropout4(target2)
         target = self.norm3(target)
 
-        return target
+        return target, target_aux
     
     
 class Gate(nn.Module):
@@ -443,32 +443,38 @@ class TransformerDecoder(nn.Module):
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, reg_scale, up,
                  eval_idx=-1, layer_scale=2):
         super(TransformerDecoder, self).__init__()
-        self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
-        self.pre_layer = copy.deepcopy(decoder_layer)
-        self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx)] \
-                    + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.layer_scale = layer_scale
         self.reg_max = reg_max
-        lqe_layer = LQE(4, 64, 2, reg_max)
-        self.lqe_layers = nn.ModuleList([copy.deepcopy(lqe_layer) for _ in range(num_layers-1)])
+        self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
+        self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
+                    + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
+        self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max)) for _ in range(num_layers)])
+        # self.init_pred_corners = nn.Parameter(torch.zeros((1, 4 * (reg_max + 1))), requires_grad=True)
+        self.pred_corner_head = nn.Linear(hidden_dim, 4 * (reg_max + 1))
+        init.constant_(self.pred_corner_head.weight, 0)
+        init.constant_(self.pred_corner_head.bias, 0)
+
         if layer_scale > 1:
-            self.proj = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
-        self.init_pred_corners = nn.Parameter(torch.zeros((1, 4 * (reg_max + 1))), requires_grad=True)
+            self.scale = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
         if not self.training:
             self.project = generate_linspace(self.reg_max, up, reg_scale)
 
     def convert_to_deploy(self):
-        self.layers = self.layers[:self.eval_idx]
-        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx - 1) + [self.lqe_layers[self.eval_idx - 1]])
-        if hasattr(self, 'proj'):
-            self.__delattr__('proj')
+        self.layers = self.layers[:self.eval_idx + 1]
+        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
+        if hasattr(self, 'scale'):
+            self.__delattr__('scale')
     
-
     def detach(self, x):
         return x.detach() if self.training else x
-    
+
+    def inplace_modify(self, x, y, num):
+        x_c = x.clone()
+        x_c[:, :num] = y
+        return x_c
+        
     def forward(self,
                 target,
                 ref_points_unact,
@@ -476,56 +482,55 @@ class TransformerDecoder(nn.Module):
                 memory_spatial_shapes,
                 bbox_head,
                 score_head,
-                pre_bbox_head,
-                pre_score_head,
                 query_pos_head,
+                pre_bbox_head,
                 integral,
                 up,
                 reg_scale,
                 attn_mask=None,
-                memory_mask=None):
-        output = target
+                memory_mask=None,
+                dn_meta=None):
+        output = output_detach = target
         dec_out_bboxes = []
         dec_out_logits = []
         dec_out_pred_corners = []
-        refs = []
-        ref_points_detach = F.sigmoid(ref_points_unact)
-        pred_corners_undetach = self.init_pred_corners.expand(target.size(0), target.size(1), -1)
-        
-        ref_points_input = ref_points_detach.unsqueeze(2)
-        query_pos_embed = query_pos_head(ref_points_detach)    
-        output = self.pre_layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)    
-        pre_logits = pre_score_head(output) if self.training else None
-        pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
-        ref_points_detach = ref_points_inital = self.detach(pre_bboxes)
-        output_detach = self.detach(output)
+        dec_out_refs = []
         if not hasattr(self, 'project'):
             project = generate_linspace(self.reg_max, up, reg_scale)  
         else:
             project = self.project  
-
+            
+        ref_points_detach = F.sigmoid(ref_points_unact)
+        # pred_corners_undetach = self.init_pred_corners.expand(target.size(0), target.size(1), -1)
+            
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
-            if i == self.eval_idx and self.layer_scale > 1:
+            
+            if i == self.eval_idx + 1 and self.layer_scale > 1:
                 output_detach = F.interpolate(output_detach, scale_factor=self.layer_scale)
-                output = self.proj(output)
-            if i >= self.eval_idx and self.layer_scale > 1:
+                output = self.scale(output)
+            if i >= self.eval_idx + 1 and self.layer_scale > 1:
                 query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.layer_scale)
                 
-            output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
-            
+            output, output_aux = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
+            if i == 0 :
+                pre_bboxes = F.sigmoid(pre_bbox_head(output + output_detach) + inverse_sigmoid(ref_points_detach))
+                ref_points_inital = pre_bboxes #.detach()
+                pred_corners_undetach = self.pred_corner_head(output + output_detach)
+                       
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             outputs_coord_delta = integral(pred_corners, project)
             inter_ref_bbox = distance2bbox(ref_points_inital, outputs_coord_delta, reg_scale)
+            ref_points_inital = self.detach(ref_points_inital)
 
-            if self.training or i+1 == self.eval_idx:
+            if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
                 scores = self.lqe_layers[i](scores, pred_corners)
                 dec_out_logits.append(scores)
                 dec_out_bboxes.append(inter_ref_bbox)
                 dec_out_pred_corners.append(pred_corners)
-                refs.append(ref_points_inital) 
+                dec_out_refs.append(ref_points_inital) 
                         
                 if not self.training:
                     break  
@@ -535,7 +540,7 @@ class TransformerDecoder(nn.Module):
             output_detach = self.detach(output)
 
         return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits), \
-               torch.stack(dec_out_pred_corners), torch.stack(refs), pre_bboxes, pre_logits
+               torch.stack(dec_out_pred_corners), torch.stack(dec_out_refs), pre_bboxes
 
 
 @register()
@@ -596,8 +601,8 @@ class DFINETransformer(nn.Module):
         self._build_input_proj_layer(feat_channels)
         
         # Transformer module
-        self.up = nn.Parameter(torch.tensor([1., 0.]), requires_grad=True)
-        self.reg_scale = nn.Parameter(reg_max // 10 * torch.ones([1]), requires_grad=True)
+        self.up = nn.Parameter(torch.tensor([2., 1.]), requires_grad=True)
+        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
@@ -636,14 +641,13 @@ class DFINETransformer(nn.Module):
         self.enc_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
         
         # decoder head
-        self.pre_score_head = nn.Linear(hidden_dim, num_classes)
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
         self.dec_score_head = nn.ModuleList(
-            [nn.Linear(hidden_dim, num_classes) for _ in range(self.eval_idx)] 
+            [nn.Linear(hidden_dim, num_classes) for _ in range(self.eval_idx + 1)] 
           + [nn.Linear(scaled_dim, num_classes) for _ in range(num_layers - self.eval_idx - 1)])
         self.pre_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
         self.dec_bbox_head = nn.ModuleList(
-            [MLP(hidden_dim, hidden_dim, 4 * (self.reg_max+1), 3) for _ in range(self.eval_idx)] 
+            [MLP(hidden_dim, hidden_dim, 4 * (self.reg_max+1), 3) for _ in range(self.eval_idx + 1)] 
           + [MLP(scaled_dim, scaled_dim, 4 * (self.reg_max+1), 3) for _ in range(num_layers - self.eval_idx - 1)])
         self.integral = Integral(self.reg_max)
 
@@ -659,8 +663,7 @@ class DFINETransformer(nn.Module):
         self._reset_parameters()
 
     def convert_to_deploy(self):
-        self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx - 1) + [self.dec_score_head[self.eval_idx - 1]])
-        self.pre_score_head = nn.Identity()
+        self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.dec_score_head[self.eval_idx]])
 
     def _reset_parameters(self):
         bias = bias_init_with_prob(0.01)
@@ -668,7 +671,6 @@ class DFINETransformer(nn.Module):
         init.constant_(self.enc_bbox_head.layers[-1].weight, 0)
         init.constant_(self.enc_bbox_head.layers[-1].bias, 0)
         
-        init.constant_(self.pre_score_head.bias, bias)
         init.constant_(self.pre_bbox_head.layers[-1].weight, 0)
         init.constant_(self.pre_bbox_head.layers[-1].bias, 0)
         
@@ -846,7 +848,8 @@ class DFINETransformer(nn.Module):
                     self.denoising_class_embed, 
                     num_denoising=self.num_denoising, 
                     label_noise_ratio=self.label_noise_ratio, 
-                    box_noise_scale=self.box_noise_scale, )
+                    box_noise_scale=1.0,
+                    )
         else:
             denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
@@ -854,48 +857,44 @@ class DFINETransformer(nn.Module):
             self._get_decoder_input(memory, spatial_shapes, denoising_logits, denoising_bbox_unact)
 
         # decoder
-        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
+        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes = self.decoder(
             init_ref_contents,
             init_ref_points_unact,
             memory,
             spatial_shapes,
             self.dec_bbox_head,
             self.dec_score_head,
-            self.pre_bbox_head,
-            self.pre_score_head,
             self.query_pos_head,
+            self.pre_bbox_head,
             self.integral,
             self.up,
             self.reg_scale,
-            attn_mask=attn_mask)
+            attn_mask=attn_mask,
+            dn_meta=dn_meta)
     
         if self.training and dn_meta is not None:
             dn_pre_bboxes, pre_bboxes = torch.split(pre_bboxes, dn_meta['dn_num_split'], dim=1)
-            dn_pre_logits, pre_logits = torch.split(pre_logits, dn_meta['dn_num_split'], dim=1)
-            
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
-            
+
             dn_out_corners, out_corners = torch.split(out_corners, dn_meta['dn_num_split'], dim=2)
             dn_out_refs, out_refs = torch.split(out_refs, dn_meta['dn_num_split'], dim=2)
 
-        enc_topk_logits_list.append(pre_logits)
-        enc_topk_bboxes_list.append(pre_bboxes)
         out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
                'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
 
         if self.training and self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], 
-                                                     out_refs[:-1], out_bboxes[-1], out_corners[-1], out_logits[-1])
+            out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], 
+                                                     out_corners[-1], out_logits[-1])
             out['enc_aux_outputs'] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)
+            out['pre_outputs'] = {'pred_boxes': pre_bboxes, 'is_pre': True}
             out['enc_meta'] = {'class_agnostic': self.query_select_method == 'agnostic'}
             
             if dn_meta is not None:
-                out['dn_outputs'] = self._set_aux_loss2(dn_out_logits, dn_out_bboxes, dn_out_corners, 
-                                                        dn_out_refs, dn_out_bboxes[-1], dn_out_corners[-1], dn_out_logits[-1])
+                out['dn_outputs'] = self._set_aux_loss2(dn_out_logits, dn_out_bboxes, dn_out_corners, dn_out_refs, 
+                                                        dn_out_corners[-1], dn_out_logits[-1])
                 out['dn_meta'] = dn_meta
-                out['dn_aux_outputs'] = self._set_aux_loss([dn_pre_logits], [dn_pre_bboxes])
-
+                out['dn_pre_outputs'] = {'pred_boxes': dn_pre_bboxes, 'is_dn_pre': True}
         return out
 
 
@@ -904,18 +903,15 @@ class DFINETransformer(nn.Module):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [{'pred_logits': a, 'pred_boxes': b}
-                for a, b in zip(outputs_class, outputs_coord)]
+        return [{'pred_logits': a, 'pred_boxes': b} for a, b in zip(outputs_class, outputs_coord)]
         
         
     @torch.jit.unused
-    def _set_aux_loss2(self, outputs_class, outputs_coord, outputs_corners, outputs_ref, teacher_boxes=None, teacher_corners=None, teacher_logits=None):
+    def _set_aux_loss2(self, outputs_class, outputs_coord, outputs_corners, outputs_ref, 
+                       teacher_corners=None, teacher_logits=None):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        if teacher_corners is not None:
-            return [{'pred_logits': a, 'pred_boxes': b, 'pred_corners': c, 'ref_points': d, 'teacher_boxes': teacher_boxes,'teacher_corners': teacher_corners, 'teacher_logits': teacher_logits}
+        return [{'pred_logits': a, 'pred_boxes': b, 'pred_corners': c, 'ref_points': d, 
+                     'teacher_corners': teacher_corners, 'teacher_logits': teacher_logits}
                 for a, b, c, d in zip(outputs_class, outputs_coord, outputs_corners, outputs_ref)]
-        else:
-            return [{'pred_logits': a, 'pred_boxes': b, 'pred_corners': c, 'ref_points': d}
-                    for a, b, c, d in zip(outputs_class, outputs_coord, outputs_corners, outputs_ref)]

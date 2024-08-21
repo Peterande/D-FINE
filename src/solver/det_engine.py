@@ -90,12 +90,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(loss=loss_value, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
-        # if writer and dist_utils.is_main_process() and global_step % 10 == 0:
-        #     writer.add_scalar('Loss/total', loss_value.item(), global_step)
-        #     for j, pg in enumerate(optimizer.param_groups):
-        #         writer.add_scalar(f'Lr/pg_{j}', pg['lr'], global_step)
-        #     for k, v in loss_dict_reduced.items():
-        #         writer.add_scalar(f'Loss/{k}', v.item(), global_step)
+        if writer and dist_utils.is_main_process() and global_step % 10 == 0:
+            writer.add_scalar('Loss/total', loss_value.item(), global_step)
+            for j, pg in enumerate(optimizer.param_groups):
+                writer.add_scalar(f'Lr/pg_{j}', pg['lr'], global_step)
+            for k, v in loss_dict_reduced.items():
+                writer.add_scalar(f'Loss/{k}', v.item(), global_step)
                 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

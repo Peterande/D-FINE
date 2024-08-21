@@ -7,7 +7,7 @@ __include__: [
 ]
 
 
-output_dir: ./output/dfine_hgnetv2_b3_6x_coco
+output_dir: ./output/dfine_hgnetv2_b0_6x_coco
 
 
 DFINE:
@@ -17,11 +17,13 @@ DFINE:
 HGNetv2:
   name: 'B0'
   return_idx: [1, 2, 3]
-  freeze_stem_only: True
-  freeze_at: 0
-  freeze_norm: True
+  freeze_at: -1
+  freeze_norm: False
   use_lab: True
 
+DFINETransformer:
+  num_layers: 6
+  eval_idx: -4
 
 HybridEncoder:
   in_channels: [256, 512, 1024]
@@ -29,16 +31,14 @@ HybridEncoder:
   depth_mult: 0.34
   expansion: 0.5
 
-DFINETransformer:
-  num_layers: 6
-  eval_idx: -4
-
-
-epoches: 120 
+epoches: 117
 
 optimizer:
   type: AdamW
   params: 
+    - 
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.0001
     - 
       params: '^(?=.*backbone)(?=.*norm|bn).*$'
       lr: 0.0001
@@ -56,6 +56,6 @@ train_dataloader:
   dataset: 
     transforms:
       policy:
-        epoch: 121
+        epoch: 118
   collate_fn:
-    stop_epoch: 121
+    stop_epoch: 118

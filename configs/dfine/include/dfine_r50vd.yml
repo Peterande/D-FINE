@@ -73,7 +73,7 @@ DFINEPostProcessor:
 
 
 DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 1, loss_match_local: 1}
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.1, loss_local: 0.5}
   losses: ['vfl', 'boxes', 'local']
   alpha: 0.75
   gamma: 2.0
