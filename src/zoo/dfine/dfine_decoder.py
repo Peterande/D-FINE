@@ -78,6 +78,9 @@ def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
     
     weight_right[neg_outrange_mask] = outrange_neg_weight_right
     weight_left[neg_outrange_mask] = outrange_neg_weight_left
+    
+    weight_right[(weight_right == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
+    weight_left[(weight_left == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
 
     return indices, weight_right, weight_left
 
@@ -602,7 +605,7 @@ class DFINETransformer(nn.Module):
         
         # Transformer module
         self.up = nn.Parameter(torch.tensor([2., 1.]), requires_grad=True)
-        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
+        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=True)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
