@@ -29,7 +29,7 @@ def box_xyxy_to_cxcywh(x):
 
 def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
     upper_bound1 = (abs(up[0]) * reg_scale).item()
-    upper_bound2 = (abs(up[0]) * reg_scale * (1 + abs(up[1]))).item()
+    upper_bound2 = (abs(up[0]) * reg_scale * 2).item()
     base = (upper_bound1 + 1) ** (2 / (reg_max - 2))
     indices = torch.empty_like(values, dtype=torch.float)
     start_power = reg_max // 2
@@ -85,14 +85,23 @@ def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
     return indices, weight_right, weight_left
 
 
-def generate_linspace(reg_max, up, reg_scale):
-    upper_bound1 = abs(up[0]) * abs(reg_scale)
-    upper_bound2 = abs(up[0]) * abs(reg_scale) * (1 + abs(up[1]))
-    step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
-    left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
-    right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
-    values = [-upper_bound2] + left_values + [torch.zeros_like(up[0][None])] + right_values + [upper_bound2]
-    return torch.cat(values, 0)
+def generate_linspace(reg_max, up, reg_scale, deploy=False):
+    if deploy:
+        upper_bound1 = (abs(up[0]) * abs(reg_scale)).item()
+        upper_bound2 = (abs(up[0]) * abs(reg_scale) * 2).item()
+        step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
+        left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
+        right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
+        values = [-upper_bound2] + left_values + [torch.zeros_like(up[0][None])] + right_values + [upper_bound2]
+        return torch.tensor(values, dtype=up.dtype, device=up.device)
+    else:
+        upper_bound1 = abs(up[0]) * abs(reg_scale)
+        upper_bound2 = abs(up[0]) * abs(reg_scale) * 2
+        step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
+        left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
+        right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
+        values = [-upper_bound2] + left_values + [torch.zeros_like(up[0][None])] + right_values + [upper_bound2]
+        return torch.cat(values, 0) 
 
 
 # def generate_linspace(reg_max, up, reg_scale):
@@ -129,7 +138,7 @@ class Integral(nn.Module):
         """
         shape = x.shape
         x = F.softmax(x.reshape(-1, self.reg_max + 1), dim=1)
-        x = F.linear(x, project.type_as(x)).reshape(-1, 4)
+        x = F.linear(x, project.to(x.device)).reshape(-1, 4)
         return x.reshape(list(shape[:-1]) + [-1])
 
 
@@ -350,6 +359,7 @@ class TransformerDecoderLayer(nn.Module):
         self.cross_attn = MSDeformableAttention(d_model, n_head, n_levels, n_points, \
                                                 method=cross_attn_method, d_model_in=d_model_in)
         self.dropout2 = nn.Dropout(dropout)
+        # self.norm2 = nn.LayerNorm(d_model)
 
         # gate
         self.gateway = Gate(d_model)
@@ -398,14 +408,16 @@ class TransformerDecoderLayer(nn.Module):
             memory_spatial_shapes, 
             memory_mask)
         
-        target = target_aux = self.gateway(target, self.dropout2(target2))
+        target = self.gateway(target, self.dropout2(target2))
+        # target = target + self.dropout2(target2)
+        # target = self.norm2(target)
         
         # ffn
         target2 = self.forward_ffn(target)
         target = target + self.dropout4(target2)
         target = self.norm3(target)
 
-        return target, target_aux
+        return target
     
     
 class Gate(nn.Module):
@@ -454,29 +466,21 @@ class TransformerDecoder(nn.Module):
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max)) for _ in range(num_layers)])
-        # self.init_pred_corners = nn.Parameter(torch.zeros((1, 4 * (reg_max + 1))), requires_grad=True)
-        self.pred_corner_head = nn.Linear(hidden_dim, 4 * (reg_max + 1))
-        init.constant_(self.pred_corner_head.weight, 0)
-        init.constant_(self.pred_corner_head.bias, 0)
 
         if layer_scale > 1:
             self.scale = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
-        if not self.training:
-            self.project = generate_linspace(self.reg_max, up, reg_scale)
+
+        self.up, self.reg_scale = up, reg_scale
 
     def convert_to_deploy(self):
+        self.project = generate_linspace(self.reg_max, self.up, self.reg_scale, deploy=True)
         self.layers = self.layers[:self.eval_idx + 1]
-        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
+        # self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
         if hasattr(self, 'scale'):
             self.__delattr__('scale')
     
     def detach(self, x):
         return x.detach() if self.training else x
-
-    def inplace_modify(self, x, y, num):
-        x_c = x.clone()
-        x_c[:, :num] = y
-        return x_c
         
     def forward(self,
                 target,
@@ -504,7 +508,6 @@ class TransformerDecoder(nn.Module):
             project = self.project  
             
         ref_points_detach = F.sigmoid(ref_points_unact)
-        # pred_corners_undetach = self.init_pred_corners.expand(target.size(0), target.size(1), -1)
             
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
@@ -516,11 +519,11 @@ class TransformerDecoder(nn.Module):
             if i >= self.eval_idx + 1 and self.layer_scale > 1:
                 query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.layer_scale)
                 
-            output, output_aux = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
+            output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
             if i == 0 :
                 pre_bboxes = F.sigmoid(pre_bbox_head(output + output_detach) + inverse_sigmoid(ref_points_detach))
-                ref_points_inital = pre_bboxes #.detach()
-                pred_corners_undetach = self.pred_corner_head(output + output_detach)
+                ref_points_inital = pre_bboxes
+                pred_corners_undetach = 0
                        
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             outputs_coord_delta = integral(pred_corners, project)
@@ -604,7 +607,7 @@ class DFINETransformer(nn.Module):
         self._build_input_proj_layer(feat_channels)
         
         # Transformer module
-        self.up = nn.Parameter(torch.tensor([2., 1.]), requires_grad=True)
+        self.up = nn.Parameter(torch.tensor([.1]), requires_grad=True)
         self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=True)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
@@ -882,9 +885,13 @@ class DFINETransformer(nn.Module):
 
             dn_out_corners, out_corners = torch.split(out_corners, dn_meta['dn_num_split'], dim=2)
             dn_out_refs, out_refs = torch.split(out_refs, dn_meta['dn_num_split'], dim=2)
+        
 
-        out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
+        if self.training:
+            out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
                'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
+        else:
+            out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1]}
 
         if self.training and self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], 
@@ -898,6 +905,7 @@ class DFINETransformer(nn.Module):
                                                         dn_out_corners[-1], dn_out_logits[-1])
                 out['dn_meta'] = dn_meta
                 out['dn_pre_outputs'] = {'pred_boxes': dn_pre_bboxes, 'is_dn_pre': True}
+                
         return out
 
 

@@ -2,14 +2,14 @@ __include__: [
   '../dataset/obj365_detection.yml',
   '../runtime.yml',
   './include/dataloader.yml',
-  './include/optimizer_onj365.yml',
+  './include/optimizer_obj365.yml',
   './include/dfine_r50vd.yml',
 ]
 
-output_dir: ./output/dfine_hgnetv2_b4_2x_obj365
+output_dir: ./output/dfine_hgnetv2_b4_3x_obj365
 
 
-RTDETR:
+DFINE:
   backbone: HGNetv2
 
 
@@ -20,6 +20,9 @@ HGNetv2:
   freeze_at: 0
   freeze_norm: True
 
+DFINETransformer:
+  num_layers: 6
+  eval_idx: -2
 
 optimizer:
   type: AdamW
@@ -33,4 +36,14 @@ optimizer:
 
   lr: 0.0004
   betas: [0.9, 0.999]
-  weight_decay: 0.00005
+  weight_decay: 0.0001
+
+epoches: 36
+
+train_dataloader: 
+  dataset: 
+    transforms:
+      policy:
+        epoch: 37
+  collate_fn:
+    stop_epoch: 37

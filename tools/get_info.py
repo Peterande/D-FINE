@@ -32,8 +32,8 @@ def main(args, ):
     class Model(nn.Module):
         def __init__(self, ) -> None:
             super().__init__()
-            self.model = cfg.model.eval().deploy()
-            self.postprocessor = cfg.postprocessor.eval().deploy()
+            self.model = cfg.model.deploy()
+            self.postprocessor = cfg.postprocessor.deploy()
             print(self.postprocessor.deploy_mode)
             
         def forward(self, images, orig_target_sizes):
@@ -44,7 +44,7 @@ def main(args, ):
     class Model_for_flops(nn.Module):
         def __init__(self, ) -> None:
             super().__init__()
-            self.model = cfg2.model.eval().deploy()
+            self.model = cfg2.model.deploy()
             
         def forward(self, images):
             outputs = self.model(images)
@@ -87,7 +87,7 @@ def main(args, ):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', type=str, )
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
     parser.add_argument('--resume', '-r', type=str, )
     args = parser.parse_args()
 

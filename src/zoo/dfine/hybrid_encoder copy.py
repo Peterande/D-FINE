@@ -94,16 +94,6 @@ class ConvNormLayer(nn.Module):
         return self.norm(self.conv(x))
 
 
-class SCDown(nn.Module):
-    def __init__(self, c1, c2, k, s):
-        super().__init__()
-        self.cv1 = ConvNormLayer(c1, c2, 1, 1)
-        self.cv2 = ConvNormLayer(c2, c2, k, s, c2)
-
-    def forward(self, x):
-        return self.cv2(self.cv1(x))
-    
-    
 class RepVggBlock(nn.Module):
     def __init__(self, ch_in, ch_out, act='relu'):
         super().__init__()
@@ -209,8 +199,8 @@ class RepNCSPELAN4(nn.Module):
         super().__init__()
         self.c = c3//2
         self.cv1 = ConvNormLayer_fuse(c1, c3, 1, 1, bias=bias, act=act)
-        self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
-        self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))    
+        self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer(c4, c4, 3, 1, bias=bias, act=act))    
         self.cv4 = ConvNormLayer_fuse(c3+(2*c3//2), c2, 1, 1, bias=bias, act=act)
 
     def forward(self, x):
@@ -232,13 +222,13 @@ class RepNCSPELAN4f(nn.Module):
         super().__init__()
         self.c = c3
         self.cv1 = ConvNormLayer_fuse(c1, c3 * 2, 1, 1, bias=bias, act=act)  
-        self.cv2 = nn.Sequential(
-            RepVggBlock(c3, c3, act=act), RepVggBlock(c3, c3, act=act), ConvNormLayer_fuse(c3, c3, 3, 1, bias=bias, act=act)
-        )
-        self.cv3 = nn.Sequential(
-            RepVggBlock(c3, c3, act=act), RepVggBlock(c3, c3, act=act), ConvNormLayer_fuse(c3, c3, 3, 1, bias=bias, act=act)
-        )
-        self.cv4 = ConvNormLayer_fuse(4*c3, c2, 1, 1, bias=bias, act=act)
+        self.cv2 = nn.Sequential(*[
+            RepVggBlock(c3, c3, act=act) for _ in range(n)
+        ])
+        self.cv3 = nn.Sequential(*[
+            RepVggBlock(c3, c3, act=act) for _ in range(n)
+        ])
+        self.cv4 = ConvNormLayer_fuse(c3+(2*c3), c2, 1, 1, bias=bias, act=act)
 
     def forward(self, x):
         y = list(self.cv1(x).chunk(2, 1))
@@ -403,10 +393,9 @@ class HybridEncoder(nn.Module):
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1, 0, -1):
-            self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1))
+            self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act))
             self.fpn_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
                 # C2f(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e=expansion, act=act)
                 # C2fCIB(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e1=expansion, e2=1.0, act=act)
@@ -419,12 +408,12 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(nn.Sequential(
                 # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
-                SCDown(hidden_dim, hidden_dim, 3, 2),
+                nn.AvgPool2d(kernel_size=2, stride=2),
+                ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act),
                 )
             )
             self.pan_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
                 # C2f(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e=expansion, act=act)
                 # C2fCIB(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e1=expansion, e2=1.0, act=act)

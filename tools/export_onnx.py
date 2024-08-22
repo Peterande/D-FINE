@@ -24,7 +24,10 @@ def main(args, ):
             state = checkpoint['model']
 
         # NOTE load train mode state -> convert to deploy mode
-        cfg.model.load_state_dict(state, strict=False)
+        model_dict = cfg.model.state_dict()  # 获取当前模型的状态字典
+        pretrained_dict = {k: v for k, v in state.items() if k in model_dict and model_dict[k].shape == v.shape}  # 过滤掉不匹配的层
+        model_dict.update(pretrained_dict)  # 更新模型字典
+        cfg.model.load_state_dict(model_dict, strict=False)  # 加载更新后的字典
 
     else:
         # raise AttributeError('Only support resume to load model.state_dict by now.')
@@ -84,9 +87,9 @@ def main(args, ):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/dfine_pytorch/configs/dfinev3/dfine_hgnetv2_b6_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', type=str, )
-    parser.add_argument('--output_file', '-o', default='/home/pengys/code/dfine_pytorch/deployment/OURS/b6.onnx', type=str)
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', default='/home/pengys/code/rtdetrv2_pytorch/log/dfine_b4_reglearn4_opt_CSP_nogate_nolqe/best.pth', type=str, )
+    parser.add_argument('--output_file', '-o', default='/home/pengys/code/rtdetrv2_pytorch/deployment/b4_HG.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
 

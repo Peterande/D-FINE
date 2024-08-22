@@ -30,7 +30,7 @@ def parse_args():
                         help="Directory for storing the output visualization files.")
     parser.add_argument("--models_dir",
                         type=str,
-                        default='/home/pengys/code/dfine_pytorch/deployment/OURS/opset17',
+                        default='/home/pengys/code/dfine_pytorch/deployment/OURS',
                         help="Directory containing model engine files.")
     args = parser.parse_args()
     return args 

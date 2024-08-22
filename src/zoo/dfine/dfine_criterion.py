@@ -347,7 +347,12 @@ class DFINECriterion(nn.Module):
                 l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                 l_dict = {k + f'_dn_pre': v for k, v in l_dict.items()}
                 losses.update(l_dict)   
-
+                
+            with torch.no_grad():
+                losses.update({'UP0': outputs['up'][0], 
+                            #    'UP1': outputs['up'][0] * (1 + outputs['up'][1]),
+                               'REG': outputs['reg_scale'][0],
+                               'offset': -(outputs['up'][0] + outputs['reg_scale'][0])})
         return losses
 
     def get_loss_meta_info(self, loss, outputs, targets, indices):

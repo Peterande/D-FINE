@@ -1,7 +1,18 @@
 task: detection
 
+evaluator:
+  type: CocoEvaluator
+  iou_types: ['bbox', ]
+
+# num_classes: 365
+# remap_mscoco_category: False
+
+# num_classes: 91
+# remap_mscoco_category: False
+
 num_classes: 366
 remap_mscoco_category: False
+
 
 train_dataloader: 
   type: DataLoader
@@ -9,13 +20,15 @@ train_dataloader:
     type: CocoDetection
     img_folder: /data/pengys/Objects365/data/train/
     ann_file: /data/pengys/Objects365/data/train/new_zhiyuan_objv2_train_resized.json
+    return_masks: False
     transforms:
       type: Compose
       ops: ~
   shuffle: True
-  batch_size: 12
-  num_workers: 8
+  num_workers: 4
   drop_last: True 
+  collate_fn:
+    type: BatchImageCollateFuncion
 
 
 val_dataloader:
@@ -24,11 +37,12 @@ val_dataloader:
     type: CocoDetection
     img_folder: /data/pengys/Objects365/data/val/
     ann_file: /data/pengys/Objects365/data/val/new_zhiyuan_objv2_val_resized.json
+    return_masks: False
     transforms:
       type: Compose
       ops: ~ 
-
   shuffle: False
-  batch_size: 12
-  num_workers: 8
+  num_workers: 4
   drop_last: False
+  collate_fn:
+    type: BatchImageCollateFuncion

@@ -25,6 +25,10 @@ DFINETransformer:
   num_layers: 6
   eval_idx: -2
 
+HybridEncoder:
+  depth_mult: 1.0
+  expansion: 1.0
+  
 optimizer:
   type: AdamW
   params: 
