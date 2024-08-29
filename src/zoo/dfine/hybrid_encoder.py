@@ -11,10 +11,10 @@ import torch.nn.functional as F
 from .utils import get_activation
 
 from ...core import register
-
+from .dbb import DiverseBranchBlock as DBBlock
+from .acb import ACBlock
 
 __all__ = ['HybridEncoder']
-
 
 
 class ConvNormLayer_fuse(nn.Module):
@@ -91,27 +91,27 @@ class ConvNormLayer(nn.Module):
         self.act = nn.Identity() if act is None else get_activation(act) 
 
     def forward(self, x):
-        return self.norm(self.conv(x))
+        return self.act(self.norm(self.conv(x)))
 
 
 class SCDown(nn.Module):
     def __init__(self, c1, c2, k, s):
         super().__init__()
-        self.cv1 = ConvNormLayer(c1, c2, 1, 1)
-        self.cv2 = ConvNormLayer(c2, c2, k, s, c2)
+        self.cv1 = ConvNormLayer_fuse(c1, c2, 1, 1)
+        self.cv2 = ConvNormLayer_fuse(c2, c2, k, s, c2)
 
     def forward(self, x):
         return self.cv2(self.cv1(x))
     
     
-class RepVggBlock(nn.Module):
+class VGGBlock(nn.Module):
     def __init__(self, ch_in, ch_out, act='relu'):
         super().__init__()
         self.ch_in = ch_in
         self.ch_out = ch_out
         self.conv1 = ConvNormLayer(ch_in, ch_out, 3, 1, padding=1, act=None)
         self.conv2 = ConvNormLayer(ch_in, ch_out, 1, 1, padding=0, act=None)
-        self.act = nn.Identity() if act is None else get_activation(act) 
+        self.act = nn.Identity() if act is None else act
 
     def forward(self, x):
         if hasattr(self, 'conv'):
@@ -155,52 +155,28 @@ class RepVggBlock(nn.Module):
         std = (running_var + eps).sqrt()
         t = (gamma / std).reshape(-1, 1, 1, 1)
         return kernel * t, beta - running_mean * gamma / std
+    
 
-
-class Bottleneck(nn.Module):
-    """Standard bottleneck."""
-
-    def __init__(self, c1, c2, shortcut=True, g=1, k=3, e=0.5, act="silu"):
-        """Initializes a bottleneck module with given input/output channels, shortcut option, group, kernels, and
-        expansion.
-        """
+class ELAN(nn.Module):
+    # csp-elan
+    def __init__(self, c1, c2, c3, c4, n=2,  
+                 bias=False,
+                 act="silu",
+                 bottletype=VGGBlock):
         super().__init__()
-        c_ = int(c2 * e)
-        self.cv1 = ConvNormLayer(c1, c_, k, 1, act=act)
-        self.cv2 = ConvNormLayer(c_, c2, k, 1, g=g, act=act)
-        self.add = shortcut and c1 == c2
+        self.c = c3
+        self.cv1 = ConvNormLayer_fuse(c1, c3, 1, 1, bias=bias, act=act)
+        self.cv2 = nn.Sequential(bottletype(c3//2, c4, act=get_activation(act)), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv3 = nn.Sequential(bottletype(c4, c4, act=get_activation(act)), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv4 = ConvNormLayer_fuse(c3+(2*c4), c2, 1, 1, bias=bias, act=act)
 
     def forward(self, x):
-        """'forward()' applies the YOLO FPN to input data."""
-        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
-        
-
-class C2f(nn.Module):
-    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
-
-    def __init__(self, c1, c2, n=1, e=0.5, act="silu"):
-        """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,
-        expansion.
-        """
-        super().__init__()
-        self.c = int(c2 * e)  # hidden channels
-        self.cv1 = ConvNormLayer(c1, 2 * self.c, 1, 1, act=act)
-        self.cv2 = ConvNormLayer((2 + n) * self.c, c2, 1, 1, act=act)  # optional act=FReLU(c2)
-        self.m = nn.ModuleList(RepVggBlock(self.c, self.c, act=act) for _ in range(n))
-
-    def forward(self, x):
-        """Forward pass through C2f layer."""
+        # y = [self.cv1(x)]
         y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
-
-    def forward_split(self, x):
-        """Forward pass using split() instead of chunk()."""
-        y = list(self.cv1(x).split((self.c, self.c), 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
-        
-                           
+        y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
+        return self.cv4(torch.cat(y, 1))
+    
+                                   
 class RepNCSPELAN4(nn.Module):
     # csp-elan
     def __init__(self, c1, c2, c3, c4, n=3,  
@@ -209,65 +185,81 @@ class RepNCSPELAN4(nn.Module):
         super().__init__()
         self.c = c3//2
         self.cv1 = ConvNormLayer_fuse(c1, c3, 1, 1, bias=bias, act=act)
-        self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
-        self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))    
-        self.cv4 = ConvNormLayer_fuse(c3+(2*c3//2), c2, 1, 1, bias=bias, act=act)
+        self.cv2 = nn.Sequential(CSPLayer(c3//2, c4, n, 1, bias=bias, act=act, bottletype=VGGBlock), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv3 = nn.Sequential(CSPLayer(c4, c4, n, 1, bias=bias, act=act, bottletype=VGGBlock), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))    
+        self.cv4 = ConvNormLayer_fuse(c3+(2*c4), c2, 1, 1, bias=bias, act=act)
 
-    def forward(self, x):
+    def forward_chunk(self, x):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
         return self.cv4(torch.cat(y, 1))
 
-    def forward_split(self, x):
+    def forward(self, x):
         y = list(self.cv1(x).split((self.c, self.c), 1))
         y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
         return self.cv4(torch.cat(y, 1))
-
+    
 
 class RepNCSPELAN4f(nn.Module):
     # csp-elan
-    def __init__(self, c1, c2, c3, n=3,  
+    def __init__(self, c1, c2, c4, n=3,  
                  bias=False,
                  act="silu"):
         super().__init__()
-        self.c = c3
-        self.cv1 = ConvNormLayer_fuse(c1, c3 * 2, 1, 1, bias=bias, act=act)  
-        self.cv2 = nn.Sequential(
-            RepVggBlock(c3, c3, act=act), RepVggBlock(c3, c3, act=act), ConvNormLayer_fuse(c3, c3, 3, 1, bias=bias, act=act)
-        )
-        self.cv3 = nn.Sequential(
-            RepVggBlock(c3, c3, act=act), RepVggBlock(c3, c3, act=act), ConvNormLayer_fuse(c3, c3, 3, 1, bias=bias, act=act)
-        )
-        self.cv4 = ConvNormLayer_fuse(4*c3, c2, 1, 1, bias=bias, act=act)
+        self.c = c4
+        self.cv1 = ConvNormLayer_fuse(c1, 2*c4, 1, 1, bias=bias, act=act)
+        self.cv2 = CSPLayerf(c4, c4, n, bias=bias, act=act, bottletype=ACBlock)
+        self.cv3 = CSPLayerf(c4, c4, n, bias=bias, act=act, bottletype=ACBlock)   
+        self.cv4 = ConvNormLayer_fuse(4*c4, c2, 1, 1, bias=bias, act=act)
 
-    def forward(self, x):
+    def forward_chunk(self, x):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
         return self.cv4(torch.cat(y, 1))
 
-    def forward_split(self, x):
+    def forward(self, x):
         y = list(self.cv1(x).split((self.c, self.c), 1))
         y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
         return self.cv4(torch.cat(y, 1))
     
+
+class CSPLayerf(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 num_blocks=3,
+                 bias=False,
+                 act="silu",
+                 bottletype=VGGBlock):
+        super(CSPLayerf, self).__init__()
+        self.conv1 = ConvNormLayer_fuse(2 * out_channels, out_channels, 1, 1, bias=bias, act=act)
+        self.bottlenecks = nn.Sequential(*[
+            bottletype(in_channels, out_channels, act=get_activation(act)) for _ in range(num_blocks)
+        ])
+
+    def forward(self, x):
+        x_1 = self.bottlenecks(x)
+        return self.conv1(torch.cat([x, x_1], 1))
     
-class CSPRepLayer(nn.Module):
+      
+class CSPLayer(nn.Module):
     def __init__(self,
                  in_channels,
                  out_channels,
                  num_blocks=3,
                  expansion=1.0,
                  bias=False,
-                 act="silu"):
-        super(CSPRepLayer, self).__init__()
+                 act="silu",
+                 bottletype=VGGBlock):
+        super(CSPLayer, self).__init__()
         hidden_channels = int(out_channels * expansion)
-        self.conv1 = ConvNormLayer(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
-        self.conv2 = ConvNormLayer(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
+        self.conv1 = ConvNormLayer_fuse(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
+        self.conv2 = ConvNormLayer_fuse(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
         self.bottlenecks = nn.Sequential(*[
-            RepVggBlock(hidden_channels, hidden_channels, act=act) for _ in range(num_blocks)
+            bottletype(hidden_channels, hidden_channels, act=get_activation(act)) for _ in range(num_blocks)
         ])
         if hidden_channels != out_channels:
-            self.conv3 = ConvNormLayer(hidden_channels, out_channels, 1, 1, bias=bias, act=act)
+            self.conv3 = ConvNormLayer_fuse(hidden_channels, out_channels, 1, 1, bias=bias, act=act)
         else:
             self.conv3 = nn.Identity()
 
@@ -277,7 +269,7 @@ class CSPRepLayer(nn.Module):
         x_2 = self.conv2(x)
         return self.conv3(x_1 + x_2)
 
-
+    
 # transformer
 class TransformerEncoderLayer(nn.Module):
     def __init__(self,
@@ -403,14 +395,12 @@ class HybridEncoder(nn.Module):
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1, 0, -1):
-            self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1))
+            self.lateral_convs.append(ConvNormLayer_fuse(hidden_dim, hidden_dim, 1, 1))
             self.fpn_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
-                # C2f(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e=expansion, act=act)
-                # C2fCIB(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e1=expansion, e2=1.0, act=act)
-                # C2f(hidden_dim * 2, hidden_dim, 2, e=expansion, act=act)
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                # ELAN(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult), bottletype=VGGBlock)
+                # CSPLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion, bottletype=VGGBlock)
             )
 
         # bottom-up pan
@@ -423,12 +413,10 @@ class HybridEncoder(nn.Module):
                 )
             )
             self.pan_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
-                # C2f(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e=expansion, act=act)
-                # C2fCIB(hidden_dim * 2, hidden_dim, round(3 * depth_mult), e1=expansion, e2=1.0, act=act)
-                # C2f(hidden_dim * 2, hidden_dim, 2, e=expansion, act=act)
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult))
+                # ELAN(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult), bottletype=VGGBlock)
+                # CSPLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion, bottletype=VGGBlock)
             )
 
         self._reset_parameters()

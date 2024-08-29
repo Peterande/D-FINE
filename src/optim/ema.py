@@ -25,7 +25,7 @@ class ModelEMA(object):
     This class is sensitive where it is initialized in the sequence of model init,
     GPU assignment and distributed training wrappers.
     """
-    def __init__(self, model: nn.Module, decay: float=0.9999, warmups: int=2000, ):
+    def __init__(self, model: nn.Module, decay: float=0.9999, warmups: int=1000, start: int=0):
         super().__init__()
 
         self.module = deepcopy(dist_utils.de_parallel(model)).eval() 
@@ -34,6 +34,8 @@ class ModelEMA(object):
         
         self.decay = decay 
         self.warmups = warmups
+        self.before_start = 0
+        self.start = start
         self.updates = 0  # number of EMA updates
         self.decay_fn = lambda x: decay * (1 - math.exp(-x / warmups))  # decay exponential ramp (to help early epochs)
         
@@ -42,6 +44,9 @@ class ModelEMA(object):
 
 
     def update(self, model: nn.Module):
+        if self.before_start < self.start:
+            self.before_start += 1
+            return
         # Update EMA parameters
         with torch.no_grad():
             self.updates += 1

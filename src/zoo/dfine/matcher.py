@@ -50,7 +50,7 @@ class HungarianMatcher(nn.Module):
         assert self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0, "all costs cant be 0"
 
     @torch.no_grad()
-    def forward(self, outputs: Dict[str, torch.Tensor], targets):
+    def forward(self, outputs: Dict[str, torch.Tensor], targets, return_topk=False):
         """ Performs the matching
 
         Params:
@@ -109,8 +109,9 @@ class HungarianMatcher(nn.Module):
         indices_pre = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
         indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices_pre]
         
-        # # Compute top3 indices
-        # top3_indices = self.get_top_k_matches(C, sizes=sizes, k=3, initial_indices=indices_pre)
+        # Compute top3 indices
+        if return_topk:
+            return {'indices': self.get_top_k_matches(C, sizes=sizes, k=return_topk, initial_indices=indices_pre)}
 
         return {'indices': indices} # , 'indices_o2m': C.min(-1)[1]}
 

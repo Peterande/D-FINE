@@ -23,7 +23,7 @@ HGNetv2:
 
 DFINETransformer:
   num_layers: 6
-  eval_idx: -2
+  eval_idx: -1
 
 HybridEncoder:
   depth_mult: 1.0

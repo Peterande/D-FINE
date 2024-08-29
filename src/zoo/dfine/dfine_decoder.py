@@ -15,7 +15,7 @@ from typing import List
 from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func_v2, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
-
+from .hybrid_encoder import RepNCSPELAN4
 from ...core import register
 
 __all__ = ['DFINETransformer']
@@ -27,60 +27,105 @@ def box_xyxy_to_cxcywh(x):
     return torch.stack(b, dim=-1)
 
 
-def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
-    upper_bound1 = (abs(up[0]) * reg_scale).item()
-    upper_bound2 = (abs(up[0]) * reg_scale * 2).item()
-    base = (upper_bound1 + 1) ** (2 / (reg_max - 2))
-    indices = torch.empty_like(values, dtype=torch.float)
-    start_power = reg_max // 2
-    zero_mask = (values == 0)
-    positive_mask = (values > 0) & (values <= upper_bound1)
-    negative_mask = (values < 0) & (values >= -upper_bound1)
-    pos_outrange_mask = (values > upper_bound1)
-    neg_outrange_mask = (values < -upper_bound1)
+# def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
+#     upper_bound1 = (abs(up[0]) * reg_scale).item()
+#     upper_bound2 = (abs(up[0]) * reg_scale * 2).item()
+#     base = (upper_bound1 + 1) ** (2 / (reg_max - 2))
+#     indices = torch.empty_like(values, dtype=torch.float)
+#     start_power = reg_max // 2
+#     zero_mask = (values == 0)
+#     positive_mask = (values > 0) & (values <= upper_bound1)
+#     negative_mask = (values < 0) & (values >= -upper_bound1)
+#     pos_outrange_mask = (values > upper_bound1)
+#     neg_outrange_mask = (values < -upper_bound1)
 
-    indices[zero_mask] = start_power
-    indices[negative_mask] = start_power - torch.log(-values[negative_mask] + 1) / math.log(base)
-    indices[positive_mask] = start_power + torch.log(values[positive_mask] + 1) / math.log(base)
-    indices[pos_outrange_mask] = reg_max - 0.1
-    indices[neg_outrange_mask] = 0
+#     indices[zero_mask] = start_power
+#     indices[negative_mask] = start_power - torch.log(-values[negative_mask] + 1) / math.log(base)
+#     indices[positive_mask] = start_power + torch.log(values[positive_mask] + 1) / math.log(base)
+#     indices[pos_outrange_mask] = reg_max - 0.1
+#     indices[neg_outrange_mask] = 0
     
-    pos_right_dif = (base ** (indices[positive_mask].long() + 1 - start_power) - 1) - values[positive_mask]
-    pos_left_dif = values[positive_mask] - (base ** (indices[positive_mask].long() - start_power) - 1)
-    pos_weight_right = pos_left_dif / (pos_right_dif + pos_left_dif)
-    pos_weight_left = 1 - pos_weight_right
+#     pos_right_dif = (base ** (indices[positive_mask].long() + 1 - start_power) - 1) - values[positive_mask]
+#     pos_left_dif = values[positive_mask] - (base ** (indices[positive_mask].long() - start_power) - 1)
+#     pos_weight_right = pos_left_dif / (pos_right_dif + pos_left_dif)
+#     pos_weight_left = 1 - pos_weight_right
     
-    neg_right_dif = -values[negative_mask] - (base ** (start_power - indices[negative_mask].long() - 1) - 1)
-    neg_left_dif = (base ** (start_power - indices[negative_mask].long()) - 1) - (-values[negative_mask])
-    neg_weight_right = neg_left_dif / (neg_right_dif + neg_left_dif)
-    neg_weight_left = 1 - neg_weight_right 
+#     neg_right_dif = -values[negative_mask] - (base ** (start_power - indices[negative_mask].long() - 1) - 1)
+#     neg_left_dif = (base ** (start_power - indices[negative_mask].long()) - 1) - (-values[negative_mask])
+#     neg_weight_right = neg_left_dif / (neg_right_dif + neg_left_dif)
+#     neg_weight_left = 1 - neg_weight_right 
     
-    outrange_pos_right_dif = upper_bound2 - values[pos_outrange_mask]
-    outrange_pos_left_dif = values[pos_outrange_mask] - (base ** (start_power - 1) - 1)
-    outrange_pos_weight_right = outrange_pos_left_dif / (outrange_pos_left_dif + outrange_pos_right_dif.clamp(0, 1))
-    outrange_pos_weight_left = 1 - outrange_pos_weight_right
+#     outrange_pos_right_dif = upper_bound2 - values[pos_outrange_mask]
+#     outrange_pos_left_dif = values[pos_outrange_mask] - (base ** (start_power - 1) - 1)
+#     outrange_pos_weight_right = outrange_pos_left_dif / (outrange_pos_left_dif + outrange_pos_right_dif.clamp(0, 1))
+#     outrange_pos_weight_left = 1 - outrange_pos_weight_right
     
-    outrange_neg_right_dif = -values[neg_outrange_mask] - (base ** (start_power - 1) - 1)
-    outrange_neg_left_dif = upper_bound2 - (-values[neg_outrange_mask])
-    outrange_neg_weight_left = outrange_neg_right_dif / (outrange_neg_right_dif + outrange_neg_left_dif.clamp(0, 1))
-    outrange_neg_weight_right = 1 - outrange_neg_weight_left
+#     outrange_neg_right_dif = -values[neg_outrange_mask] - (base ** (start_power - 1) - 1)
+#     outrange_neg_left_dif = upper_bound2 - (-values[neg_outrange_mask])
+#     outrange_neg_weight_left = outrange_neg_right_dif / (outrange_neg_right_dif + outrange_neg_left_dif.clamp(0, 1))
+#     outrange_neg_weight_right = 1 - outrange_neg_weight_left
     
-    weight_right, weight_left = torch.zeros_like(indices), torch.zeros_like(indices)
+#     weight_right, weight_left = torch.zeros_like(indices), torch.zeros_like(indices)
     
-    weight_right[positive_mask] = pos_weight_right
-    weight_left[positive_mask] = pos_weight_left
+#     weight_right[positive_mask] = pos_weight_right
+#     weight_left[positive_mask] = pos_weight_left
     
-    weight_right[negative_mask] = neg_weight_right
-    weight_left[negative_mask] = neg_weight_left
+#     weight_right[negative_mask] = neg_weight_right
+#     weight_left[negative_mask] = neg_weight_left
     
-    weight_right[pos_outrange_mask] = outrange_pos_weight_right
-    weight_left[pos_outrange_mask] = outrange_pos_weight_left
+#     weight_right[pos_outrange_mask] = outrange_pos_weight_right
+#     weight_left[pos_outrange_mask] = outrange_pos_weight_left
     
-    weight_right[neg_outrange_mask] = outrange_neg_weight_right
-    weight_left[neg_outrange_mask] = outrange_neg_weight_left
+#     weight_right[neg_outrange_mask] = outrange_neg_weight_right
+#     weight_left[neg_outrange_mask] = outrange_neg_weight_left
     
-    weight_right[(weight_right == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
-    weight_left[(weight_left == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
+#     weight_right[(weight_right == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
+#     weight_left[(weight_left == 1) & (pos_outrange_mask | neg_outrange_mask)] = 0
+
+#     return indices, weight_right, weight_left
+
+
+def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
+    values = values.reshape(-1)
+    function_values = generate_linspace(reg_max, up, reg_scale)
+
+    # Step 1: Find the closest left-side indices for each value
+    diffs = function_values.unsqueeze(0) - values.unsqueeze(1)
+    
+    # Find closest left-side indices
+    mask = diffs <= 0
+    closest_left_indices = torch.sum(mask, dim=1) - 1  # last True indices
+
+    # Step 2: Calculate the weights for the interpolation
+    indices = closest_left_indices.float()
+
+    weight_right = torch.zeros_like(indices)
+    weight_left = torch.zeros_like(indices)
+
+    valid_idx_mask = (indices >= 0) & (indices < reg_max)  # Valid indices
+    valid_indices = indices[valid_idx_mask].long()
+
+    # Obtain distances
+    left_values = function_values[valid_indices]
+    right_values = function_values[valid_indices + 1]
+
+    left_diffs = torch.abs(values[valid_idx_mask] - left_values)
+    right_diffs = torch.abs(right_values - values[valid_idx_mask])
+
+    # Valid weights
+    weight_right[valid_idx_mask] = left_diffs / (left_diffs + right_diffs)
+    weight_left[valid_idx_mask] = 1.0 - weight_right[valid_idx_mask]
+
+    # Invalid weights (out of range)
+    invalid_idx_mask_neg = (indices < 0)
+    weight_right[invalid_idx_mask_neg] = 0.0
+    weight_left[invalid_idx_mask_neg] = 1.0
+    indices[invalid_idx_mask_neg] = 0.0
+    
+    invalid_idx_mask_pos = (indices >= reg_max)
+    weight_right[invalid_idx_mask_pos] = 1.0
+    weight_left[invalid_idx_mask_pos] = 0.0
+    indices[invalid_idx_mask_pos] = reg_max - 0.1
 
     return indices, weight_right, weight_left
 
@@ -102,15 +147,25 @@ def generate_linspace(reg_max, up, reg_scale, deploy=False):
         right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
         values = [-upper_bound2] + left_values + [torch.zeros_like(up[0][None])] + right_values + [upper_bound2]
         return torch.cat(values, 0) 
+    
 
-
-# def generate_linspace(reg_max, up, reg_scale):
-#     step = (up * reg_scale + 1) ** (2 / reg_max)
-#     left_values = [-(step) ** i + 1 for i in range(reg_max // 2, 0, -1)]
-#     right_values = [(step) ** i - 1 for i in range(1, reg_max // 2 + 1)]
-#     values = left_values + [torch.zeros_like(up[0][None])] + right_values
-#     return torch.cat(values, 0)
-
+# def generate_linspace(reg_max, up, reg_scale, deploy=False):
+#     if deploy:
+#         upper_bound1 = (abs(up[0]) * abs(reg_scale)).item()
+#         step = (upper_bound1 + 1) ** (2 / reg_max)
+#         left_values = [-(step) ** i + 1 for i in range(reg_max // 2, 0, -1)]
+#         right_values = [(step) ** i - 1 for i in range(1, reg_max // 2 + 1)]
+#         values = left_values + [torch.zeros_like(up[0][None])] + right_values
+#         return torch.tensor(values, dtype=up.dtype, device=up.device)
+#     else:
+#         upper_bound1 = abs(up[0]) * abs(reg_scale)
+#         step = (upper_bound1 + 1) ** (2 / reg_max)
+#         left_values = [-(step) ** i + 1 for i in range(reg_max // 2, 0, -1)]
+#         right_values = [(step) ** i - 1 for i in range(1, reg_max // 2 + 1)]
+#         values = left_values + [torch.zeros_like(up[0][None])] + right_values
+#         return torch.cat(values, 0) 
+    
+       
 class Integral(nn.Module):
     """A fixed layer for calculating integral result from distribution.
     This layer calculates the target location by :math: `sum{P(y_i) * y_i}`,
@@ -240,11 +295,8 @@ class MSDeformableAttention(nn.Module):
 
         self.sampling_offsets = nn.Linear(embed_dim, self.total_points * 2)
         self.attention_weights = nn.Linear(embed_dim, self.total_points)
-        if d_model_in is None:
-            self.value_proj = nn.Linear(embed_dim, embed_dim)
-        else:
-            self.value_proj = nn.Linear(d_model_in, embed_dim)
-        self.output_proj = nn.Linear(embed_dim, embed_dim)
+
+        # self.output_proj = nn.Linear(embed_dim, embed_dim)
 
         self.ms_deformable_attn_core = functools.partial(deformable_attention_core_func_v2, method=self.method) 
 
@@ -269,11 +321,9 @@ class MSDeformableAttention(nn.Module):
         init.constant_(self.attention_weights.weight, 0)
         init.constant_(self.attention_weights.bias, 0)
 
-        # proj
-        init.xavier_uniform_(self.value_proj.weight)
-        init.constant_(self.value_proj.bias, 0)
-        init.xavier_uniform_(self.output_proj.weight)
-        init.constant_(self.output_proj.bias, 0)
+        # # proj
+        # init.xavier_uniform_(self.output_proj.weight)
+        # init.constant_(self.output_proj.bias, 0)
 
 
     def forward(self,
@@ -295,19 +345,12 @@ class MSDeformableAttention(nn.Module):
             output (Tensor): [bs, Length_{query}, C]
         """
         bs, Len_q = query.shape[:2]
-        Len_v = value.shape[1]
-
-        value = self.value_proj(value)
-        if value_mask is not None:
-            value = value * value_mask.to(value.dtype).unsqueeze(-1)
-
-        value = value.reshape(bs, Len_v, self.num_heads, self.head_dim)
 
         sampling_offsets: torch.Tensor = self.sampling_offsets(query)
         sampling_offsets = sampling_offsets.reshape(bs, Len_q, self.num_heads, sum(self.num_points_list), 2)
 
         attention_weights = self.attention_weights(query).reshape(bs, Len_q, self.num_heads, sum(self.num_points_list))
-        attention_weights = F.softmax(attention_weights, dim=-1).reshape(bs, Len_q, self.num_heads, sum(self.num_points_list))
+        attention_weights = F.softmax(attention_weights, dim=-1)
 
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.tensor(value_spatial_shapes)
@@ -326,7 +369,7 @@ class MSDeformableAttention(nn.Module):
 
         output = self.ms_deformable_attn_core(value, value_spatial_shapes, sampling_locations, attention_weights, self.num_points_list)
 
-        output = self.output_proj(output)
+        # output = self.output_proj(output)
 
         return output
 
@@ -434,8 +477,24 @@ class Gate(nn.Module):
         gates = torch.sigmoid(self.gate(gate_input))
         gate1, gate2 = gates.chunk(2, dim=-1)
         return self.norm(gate1 * x1 + gate2 * x2)
+     
+
+class LightGate(nn.Module):
+    def __init__(self, d_model):
+        super(LightGate, self).__init__()
+        self.gate = nn.Linear(2 * d_model, 2)
+        bias = bias_init_with_prob(0.5)
+        init.constant_(self.gate.bias, bias)
+        init.constant_(self.gate.weight, 0)
+        self.norm = nn.LayerNorm(d_model)
+
+    def forward(self, x1, x2):
+        gate_input = torch.cat([x1, x2], dim=-1)
+        gates = torch.sigmoid(self.gate(gate_input))
+        gate1, gate2 = gates.chunk(2, dim=-1)
+        return self.norm(gate1 * x1 + gate2 * x2)
     
-        
+              
 class LQE(nn.Module):
     def __init__(self, k, hidden_dim, num_layers, reg_max):
         super(LQE, self).__init__()
@@ -455,29 +514,52 @@ class LQE(nn.Module):
     
     
 class TransformerDecoder(nn.Module):
-    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, reg_max, reg_scale, up,
+    def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
                  eval_idx=-1, layer_scale=2):
         super(TransformerDecoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.layer_scale = layer_scale
         self.reg_max = reg_max
+        self.num_head = num_head
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
         self.layers = nn.ModuleList([copy.deepcopy(decoder_layer) for _ in range(self.eval_idx + 1)] \
                     + [copy.deepcopy(decoder_layer_wide) for _ in range(num_layers - self.eval_idx - 1)])
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max)) for _ in range(num_layers)])
+        # self.value_proj = nn.Linear(hidden_dim, hidden_dim)
 
         if layer_scale > 1:
-            self.scale = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
+            self.scale1 = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
+            self.scale2 = nn.Linear(hidden_dim, round(hidden_dim * layer_scale))
+            self.xav_init([self.scale1, self.scale2])
 
         self.up, self.reg_scale = up, reg_scale
+        # self.xav_init([self.value_proj])
 
+    def xav_init(self, layers):
+        for layer in layers:
+            init.xavier_uniform_(layer.weight)
+            init.constant_(layer.bias, 0)
+    
+    def value_op(self, memory, value_proj, memory_mask, memory_spatial_shapes):
+        if value_proj is not None:
+            value = value_proj(memory)
+        else:
+            value = memory
+        if memory_mask is not None:
+            value = value * memory_mask.to(value.dtype).unsqueeze(-1)
+
+        value = value.reshape(value.shape[0], value.shape[1], self.num_head, -1)
+        split_shape = [h * w for h, w in memory_spatial_shapes]
+        return value.permute(0, 2, 3, 1).split(split_shape, dim=-1)
+                
     def convert_to_deploy(self):
         self.project = generate_linspace(self.reg_max, self.up, self.reg_scale, deploy=True)
         self.layers = self.layers[:self.eval_idx + 1]
-        # self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
-        if hasattr(self, 'scale'):
-            self.__delattr__('scale')
+        self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
+        if hasattr(self, 'scale1'):
+            self.__delattr__('scale1')
+            self.__delattr__('scale2')
     
     def detach(self, x):
         return x.detach() if self.training else x
@@ -497,7 +579,9 @@ class TransformerDecoder(nn.Module):
                 attn_mask=None,
                 memory_mask=None,
                 dn_meta=None):
-        output = output_detach = target
+        output = target
+        value = self.value_op(memory, None, memory_mask, memory_spatial_shapes)
+             
         dec_out_bboxes = []
         dec_out_logits = []
         dec_out_pred_corners = []
@@ -514,21 +598,32 @@ class TransformerDecoder(nn.Module):
             query_pos_embed = query_pos_head(ref_points_detach)
             
             if i == self.eval_idx + 1 and self.layer_scale > 1:
-                output_detach = F.interpolate(output_detach, scale_factor=self.layer_scale)
-                output = self.scale(output)
+                output = self.scale1(output)
+                output_detach = self.detach(output) 
+                value = self.value_op(memory, self.scale2, memory_mask, memory_spatial_shapes)
+                
             if i >= self.eval_idx + 1 and self.layer_scale > 1:
                 query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.layer_scale)
                 
-            output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
+            # if i == 0 :
+            #     output = layer(target, ref_points_input, value, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
+            #     pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
+            #     pre_scores = score_head[i](output)
+            #     ref_points_detach = ref_points_inital = self.detach(pre_bboxes)
+            #     output_detach = self.detach(output)
+            #     pred_corners_undetach = 0
+            #     continue
+            output = layer(output, ref_points_input, value, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)       
             if i == 0 :
-                pre_bboxes = F.sigmoid(pre_bbox_head(output + output_detach) + inverse_sigmoid(ref_points_detach))
-                ref_points_inital = pre_bboxes
+                pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
+                pre_scores = score_head[i](output)
+                ref_points_inital = self.detach(pre_bboxes)
+                output_detach = 0
                 pred_corners_undetach = 0
-                       
+       
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             outputs_coord_delta = integral(pred_corners, project)
             inter_ref_bbox = distance2bbox(ref_points_inital, outputs_coord_delta, reg_scale)
-            ref_points_inital = self.detach(ref_points_inital)
 
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
@@ -546,7 +641,7 @@ class TransformerDecoder(nn.Module):
             output_detach = self.detach(output)
 
         return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits), \
-               torch.stack(dec_out_pred_corners), torch.stack(dec_out_refs), pre_bboxes
+               torch.stack(dec_out_pred_corners), torch.stack(dec_out_refs), pre_bboxes, pre_scores
 
 
 @register()
@@ -603,20 +698,19 @@ class DFINETransformer(nn.Module):
         self.cross_attn_method = cross_attn_method
         self.query_select_method = query_select_method
 
-        # backbone feature projection
-        self._build_input_proj_layer(feat_channels)
+        # # backbone feature projection
+        # self._build_input_proj_layer(feat_channels)
         
         # Transformer module
-        self.up = nn.Parameter(torch.tensor([.1]), requires_grad=True)
-        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=True)
+        self.up = nn.Parameter(torch.tensor([0.5]), requires_grad=False)
+        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method, layer_scale=layer_scale)
-        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, 
+        self.decoder = TransformerDecoder(hidden_dim, decoder_layer, decoder_layer_wide, num_layers, nhead,
                                           reg_max, self.reg_scale, self.up, eval_idx, layer_scale)
-
-        # denoising
+      # denoising
         self.num_denoising = num_denoising
         self.label_noise_ratio = label_noise_ratio
         self.box_noise_scale = box_noise_scale
@@ -665,6 +759,7 @@ class DFINETransformer(nn.Module):
         # init encoder output anchors and valid_mask
         if self.eval_spatial_size:
             self.anchors, self.valid_mask = self._generate_anchors()
+        self.enc_norm = nn.LayerNorm(hidden_dim)
         
         self._reset_parameters()
 
@@ -682,16 +777,17 @@ class DFINETransformer(nn.Module):
         
         for cls_, reg_ in zip(self.dec_score_head, self.dec_bbox_head):
             init.constant_(cls_.bias, bias)
-            init.constant_(reg_.layers[-1].weight, 0)
-            init.constant_(reg_.layers[-1].bias, 0)
+            if hasattr(reg_, 'layers'):
+                init.constant_(reg_.layers[-1].weight, 0)
+                init.constant_(reg_.layers[-1].bias, 0)
         
         init.xavier_uniform_(self.enc_output[0].weight)
         if self.learn_query_content:
             init.xavier_uniform_(self.tgt_embed.weight)
         init.xavier_uniform_(self.query_pos_head.layers[0].weight)
         init.xavier_uniform_(self.query_pos_head.layers[1].weight)
-        for m in self.input_proj:
-            init.xavier_uniform_(m[0].weight)
+        # for m in self.input_proj:
+        #     init.xavier_uniform_(m[0].weight)
 
     def _build_input_proj_layer(self, feat_channels):
         self.input_proj = nn.ModuleList()
@@ -715,15 +811,16 @@ class DFINETransformer(nn.Module):
             in_channels = self.hidden_dim
 
     def _get_encoder_input(self, feats: List[torch.Tensor]):
-        # get projection features
-        proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
-        if self.num_levels > len(proj_feats):
-            len_srcs = len(proj_feats)
-            for i in range(len_srcs, self.num_levels):
-                if i == len_srcs:
-                    proj_feats.append(self.input_proj[i](feats[-1]))
-                else:
-                    proj_feats.append(self.input_proj[i](proj_feats[-1]))
+        # # get projection features
+        # proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
+        # if self.num_levels > len(proj_feats):
+        #     len_srcs = len(proj_feats)
+        #     for i in range(len_srcs, self.num_levels):
+        #         if i == len_srcs:
+        #             proj_feats.append(self.input_proj[i](feats[-1]))
+        #         else:
+        #             proj_feats.append(self.input_proj[i](proj_feats[-1]))
+        proj_feats = feats
 
         # get encoder inputs
         feat_flatten = []
@@ -786,13 +883,13 @@ class DFINETransformer(nn.Module):
         # TODO fix type error for onnx export 
         memory = valid_mask.to(memory.dtype) * memory  
 
-        output_memory :torch.Tensor = self.enc_output(memory)
+        output_memory :torch.Tensor = self.enc_norm(memory)
         enc_outputs_logits :torch.Tensor = self.enc_score_head(output_memory)
         
         enc_topk_bboxes_list, enc_topk_logits_list = [], []
         enc_topk_memory, enc_topk_logits, enc_topk_anchors = \
             self._select_topk(output_memory, enc_outputs_logits, anchors, self.num_queries)
-            
+        
         enc_topk_bbox_unact :torch.Tensor = self.enc_bbox_head(enc_topk_memory) + enc_topk_anchors
             
         if self.training:
@@ -814,7 +911,7 @@ class DFINETransformer(nn.Module):
             enc_topk_bbox_unact = torch.concat([denoising_bbox_unact, enc_topk_bbox_unact], dim=1)
             content = torch.concat([denoising_logits, content], dim=1)
         
-        return content, enc_topk_bbox_unact, enc_topk_bboxes_list, enc_topk_logits_list
+        return self.enc_output(content), enc_topk_bbox_unact, enc_topk_bboxes_list, enc_topk_logits_list
 
     def _select_topk(self, memory: torch.Tensor, outputs_logits: torch.Tensor, outputs_anchors_unact: torch.Tensor, topk: int):
         if self.query_select_method == 'default':
@@ -833,7 +930,7 @@ class DFINETransformer(nn.Module):
             index=topk_ind.unsqueeze(-1).repeat(1, 1, outputs_anchors_unact.shape[-1]))
         
         topk_logits = outputs_logits.gather(dim=1, \
-            index=topk_ind.unsqueeze(-1).repeat(1, 1, outputs_logits.shape[-1]))
+            index=topk_ind.unsqueeze(-1).repeat(1, 1, outputs_logits.shape[-1])) if self.training else None
         
         topk_memory = memory.gather(dim=1, \
             index=topk_ind.unsqueeze(-1).repeat(1, 1, memory.shape[-1]))
@@ -858,12 +955,12 @@ class DFINETransformer(nn.Module):
                     )
         else:
             denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
-
+         
         init_ref_contents, init_ref_points_unact, enc_topk_bboxes_list, enc_topk_logits_list = \
             self._get_decoder_input(memory, spatial_shapes, denoising_logits, denoising_bbox_unact)
-
+                
         # decoder
-        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes = self.decoder(
+        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
             init_ref_contents,
             init_ref_points_unact,
             memory,
@@ -879,6 +976,7 @@ class DFINETransformer(nn.Module):
             dn_meta=dn_meta)
     
         if self.training and dn_meta is not None:
+            dn_pre_logits, pre_logits = torch.split(pre_logits, dn_meta['dn_num_split'], dim=1)
             dn_pre_bboxes, pre_bboxes = torch.split(pre_bboxes, dn_meta['dn_num_split'], dim=1)
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta['dn_num_split'], dim=2)
@@ -889,7 +987,7 @@ class DFINETransformer(nn.Module):
 
         if self.training:
             out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
-               'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
+                   'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
         else:
             out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1]}
 
@@ -897,14 +995,14 @@ class DFINETransformer(nn.Module):
             out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], 
                                                      out_corners[-1], out_logits[-1])
             out['enc_aux_outputs'] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)
-            out['pre_outputs'] = {'pred_boxes': pre_bboxes, 'is_pre': True}
+            out['pre_outputs'] = {'pred_logits': pre_logits, 'pred_boxes': pre_bboxes, 'is_pre': True}
             out['enc_meta'] = {'class_agnostic': self.query_select_method == 'agnostic'}
             
             if dn_meta is not None:
                 out['dn_outputs'] = self._set_aux_loss2(dn_out_logits, dn_out_bboxes, dn_out_corners, dn_out_refs, 
                                                         dn_out_corners[-1], dn_out_logits[-1])
                 out['dn_meta'] = dn_meta
-                out['dn_pre_outputs'] = {'pred_boxes': dn_pre_bboxes, 'is_dn_pre': True}
+                out['dn_pre_outputs'] = {'pred_logits': dn_pre_logits, 'pred_boxes': dn_pre_bboxes, 'is_dn_pre': True}
                 
         return out
 

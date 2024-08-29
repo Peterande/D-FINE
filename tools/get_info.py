@@ -50,7 +50,7 @@ def main(args, ):
             outputs = self.model(images)
             return outputs  
 
-    model = Model().eval().cuda()
+    model = Model().cuda()
 
     dynamic_axes = {
         'images': {0: 'N', },
@@ -78,7 +78,7 @@ def main(args, ):
                                             input_shape=(1, 3, 640, 640),
                                             output_as_string=True,
                                             output_precision=4)
-    params = sum(p.numel() for p in model2.parameters() if p.requires_grad)
+    params = sum(p.numel() for p in model2.parameters())
     print("Model FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
     
     t = measure_average_inference_time(model, data, 1000000)

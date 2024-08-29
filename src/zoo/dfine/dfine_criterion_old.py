@@ -256,8 +256,8 @@ class DFINECriterion(nn.Module):
         # Compute all the requested losses
         losses = {}
         for loss in self.losses:
-            indices_in = indices_go if loss in ['boxes', 'local'] else indices
-            num_boxes_in = num_boxes_go if loss in ['boxes', 'local'] else num_boxes
+            indices_in = indices_go if loss in ['local'] else indices
+            num_boxes_in = num_boxes_go if loss in ['local'] else num_boxes
             meta = self.get_loss_meta_info(loss, outputs, targets, indices_in)            
             l_dict = self.get_loss(loss, outputs, targets, indices_in, num_boxes_in, **meta)
             l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
@@ -268,8 +268,8 @@ class DFINECriterion(nn.Module):
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
                 aux_outputs['up'], aux_outputs['reg_scale'] = outputs['up'], outputs['reg_scale']
                 for loss in self.losses:
-                    indices_in = indices_go if loss in ['boxes', 'local'] else cached_indices[i]
-                    num_boxes_in = num_boxes_go if loss in ['boxes', 'local'] else num_boxes
+                    indices_in = indices_go if loss in ['local'] else cached_indices[i]
+                    num_boxes_in = num_boxes_go if loss in ['local'] else num_boxes
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_in)
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices_in, num_boxes_in, **meta)                  
                         
@@ -280,8 +280,8 @@ class DFINECriterion(nn.Module):
         if 'pre_outputs' in outputs:
             aux_outputs = outputs['pre_outputs']
             for loss in self.losses:
-                indices_in = indices_go if loss in ['boxes', 'local'] else cached_indices[-1]
-                num_boxes_in = num_boxes_go if loss in ['boxes', 'local'] else num_boxes
+                indices_in = indices_go if loss in ['local'] else cached_indices[-1]
+                num_boxes_in = num_boxes_go if loss in ['local'] else num_boxes
                 meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_in)
                 l_dict = self.get_loss(loss, aux_outputs, targets, indices_in, num_boxes_in, **meta)                  
                             
@@ -304,8 +304,8 @@ class DFINECriterion(nn.Module):
 
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
                 for loss in self.losses:
-                    indices_in = indices_go if loss == 'boxes' else cached_indices_enc[i]
-                    num_boxes_in = num_boxes_go if loss == 'boxes' else num_boxes
+                    indices_in = cached_indices_enc[i]
+                    num_boxes_in = num_boxes
                     meta = self.get_loss_meta_info(loss, aux_outputs, enc_targets, indices_in)
                     l_dict = self.get_loss(loss, aux_outputs, enc_targets, indices_in, num_boxes_in, **meta)
                     l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}

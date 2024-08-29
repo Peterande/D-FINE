@@ -83,12 +83,9 @@ def deformable_attention_core_func_v2(\
     Returns:
         output (Tensor): [bs, Length_{query}, C]
     """
-    bs, _, n_head, c = value.shape
+    bs, n_head, c, _ = value[0].shape
     _, Len_q, _, _, _ = sampling_locations.shape
         
-    split_shape = [h * w for h, w in value_spatial_shapes]
-    value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(split_shape, dim=-1)
-
     # sampling_offsets [8, 480, 8, 12, 2]
     if method == 'default':
         sampling_grids = 2 * sampling_locations - 1
@@ -101,7 +98,7 @@ def deformable_attention_core_func_v2(\
 
     sampling_value_list = []
     for level, (h, w) in enumerate(value_spatial_shapes):
-        value_l = value_list[level].reshape(bs * n_head, c, h, w)
+        value_l = value[level].reshape(bs * n_head, c, h, w)
         sampling_grid_l: torch.Tensor = sampling_locations_list[level]
 
         if method == 'default':
@@ -114,13 +111,13 @@ def deformable_attention_core_func_v2(\
         
         elif method == 'discrete':
             # n * m, seq, n, 2
-            sampling_coord = (sampling_grid_l * torch.tensor([[w, h]], device=value.device) + 0.5).to(torch.int64)
+            sampling_coord = (sampling_grid_l * torch.tensor([[w, h]], device=value_l.device) + 0.5).to(torch.int64)
 
             # FIX ME? for rectangle input
             sampling_coord = sampling_coord.clamp(0, h - 1) 
             sampling_coord = sampling_coord.reshape(bs * n_head, Len_q * num_points_list[level], 2) 
 
-            s_idx = torch.arange(sampling_coord.shape[0], device=value.device).unsqueeze(-1).repeat(1, sampling_coord.shape[1])
+            s_idx = torch.arange(sampling_coord.shape[0], device=value_l.device).unsqueeze(-1).repeat(1, sampling_coord.shape[1])
             sampling_value_l: torch.Tensor = value_l[s_idx, :, sampling_coord[..., 1], sampling_coord[..., 0]] # n l c
 
             sampling_value_l = sampling_value_l.permute(0, 2, 1).reshape(bs * n_head, c, Len_q, num_points_list[level])

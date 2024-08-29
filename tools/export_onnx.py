@@ -24,10 +24,11 @@ def main(args, ):
             state = checkpoint['model']
 
         # NOTE load train mode state -> convert to deploy mode
-        model_dict = cfg.model.state_dict()  # 获取当前模型的状态字典
-        pretrained_dict = {k: v for k, v in state.items() if k in model_dict and model_dict[k].shape == v.shape}  # 过滤掉不匹配的层
-        model_dict.update(pretrained_dict)  # 更新模型字典
-        cfg.model.load_state_dict(model_dict, strict=False)  # 加载更新后的字典
+        # cfg.model.load_state_dict(state, strict=False)
+        model_dict = cfg.model.state_dict()
+        # pretrained_dict = {k: v for k, v in state.items() if k in model_dict and model_dict[k].shape == v.shape}
+        # model_dict.update(pretrained_dict)
+        cfg.model.load_state_dict(model_dict, strict=False)
 
     else:
         # raise AttributeError('Only support resume to load model.state_dict by now.')
@@ -85,14 +86,15 @@ def main(args, ):
 
 
 if __name__ == '__main__':
+    
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default='/home/pengys/code/rtdetrv2_pytorch/log/dfine_b4_reglearn4_opt_CSP_nogate_nolqe/best.pth', type=str, )
-    parser.add_argument('--output_file', '-o', default='/home/pengys/code/rtdetrv2_pytorch/deployment/b4_HG.onnx', type=str)
+    parser.add_argument('--resume', '-r', default='/home/pengys/code/rtdetrv2_pytorch/tb/dfine_b4_elanfl6_ema/best.pth', type=str, )
+    parser.add_argument('--output_file', '-o', default='./b4_elanfl6.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
 
     args = parser.parse_args()
-
+    # scp -i /home/pengys/code/rtdetrv2_pytorch/id_rsa -P 39097 /home/pengys/code/rtdetrv2_pytorch/b4_elanfl6.onnx pengys@122.51.61.156:/home/pengys/code/rtdetrv2/deployment
     main(args)
