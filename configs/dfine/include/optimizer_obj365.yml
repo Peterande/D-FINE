@@ -2,8 +2,9 @@ use_amp: True
 use_ema: True 
 ema:
   type: ModelEMA
-  decay: 0.9999
-  warmups: 500
+  decay: 0.9996
+  warmups: 250
+  start: 0
 
 
 epoches: 36
@@ -15,22 +16,22 @@ optimizer:
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm).*$'
-      lr: 0.00002
+      lr: 0.00004
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
       weight_decay: 0.
 
-  lr: 0.0004
+  lr: 0.0008
   betas: [0.9, 0.999]
-  weight_decay: 0.00005
+  weight_decay: 0.000025
 
 
 lr_scheduler:
   type: MultiStepLR
-  milestones: [250]
+  milestones: [500]
   gamma: 0.1
 
 
 lr_warmup_scheduler:
   type: LinearWarmup
-  warmup_duration: 500
+  warmup_duration: 125

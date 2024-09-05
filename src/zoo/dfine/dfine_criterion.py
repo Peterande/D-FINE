@@ -33,6 +33,7 @@ class DFINECriterion(nn.Module):
         gamma=2.0, 
         num_classes=80, 
         reg_max=32,
+        end_epoch=70,
         boxes_weight_format=None,
         share_matched_indices=False):
         """Create the criterion.
@@ -56,6 +57,9 @@ class DFINECriterion(nn.Module):
         self.dfl_targets, self.dfl_targets_dn = None, None
         self.own_targets, self.own_targets_dn = None, None
         self.reg_max = reg_max
+        self.num_pos, self.num_neg = None, None
+        self.epoch_scale = 1
+        self.end_epoch = end_epoch
         
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -121,6 +125,7 @@ class DFINECriterion(nn.Module):
         return losses
 
     def loss_local(self, outputs, targets, indices, num_boxes, T=5):
+        """Compute the distribution focal loss and the self-distillation loss"""
         losses = {}
         idx = self._get_src_permutation_idx(indices)
         if 'pred_corners' in outputs:
@@ -146,8 +151,8 @@ class DFINECriterion(nn.Module):
                 pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
         
         if 'teacher_corners' in outputs:  
-            pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))       
-            target_corners = outputs['teacher_corners'][idx].reshape(-1, (self.reg_max+1))
+            pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))       
+            target_corners = outputs['teacher_corners'].reshape(-1, (self.reg_max+1))
             if not torch.equal(pred_corners, target_corners):
                 weight_targets_local = outputs['teacher_logits'].sigmoid().max(dim=-1)[0]
                 
@@ -155,18 +160,17 @@ class DFINECriterion(nn.Module):
                 mask[idx] = True
                 mask = mask.unsqueeze(-1).repeat(1, 1, 4).reshape(-1)
 
-                weight_targets_local = ious.reshape_as(weight_targets_local[idx]).to(weight_targets_local.dtype)
+                weight_targets_local[idx] = ious.reshape_as(weight_targets_local[idx]).to(weight_targets_local.dtype)
                 weight_targets_local = weight_targets_local.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
 
-                loss_match_local = weight_targets * (T ** 2) * (nn.KLDivLoss(reduction='none')
+                loss_match_local = weight_targets_local * (T ** 2) * (nn.KLDivLoss(reduction='none')
                 (F.log_softmax(pred_corners / T, dim=1), F.softmax(target_corners.detach() / T, dim=1))).sum(-1)
-                # if 'is_dn' not in outputs:
-                #     loss_match_local = (len(loss_match_local) / (16 * num_boxes)) * loss_match_local
-                # loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
-                # loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
-                # losses['loss_local'] = loss_match_local1 / 4 + loss_match_local2
-                losses['loss_local'] = loss_match_local.mean()
-                
+                if 'is_dn' not in outputs:
+                    self.num_pos, self.num_neg = (mask.sum() / mask.numel()) ** 0.5, ((~mask).sum() / mask.numel()) ** 0.5
+                loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
+                loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
+                losses['loss_local'] = self.epoch_scale * (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
+
         return losses
 
     def _get_src_permutation_idx(self, indices):
@@ -186,7 +190,7 @@ class DFINECriterion(nn.Module):
         results = []
         for indices_aux in indices_aux_list:
             indices = [(torch.cat([idx1[0], idx2[0]]), torch.cat([idx1[1], idx2[1]]))
-                        for idx1, idx2 in zip(indices, indices_aux)]  
+                        for idx1, idx2 in zip(indices.copy(), indices_aux.copy())]  
         # get global indices for each batch
         for ind in [torch.cat([idx[0][:, None], idx[1][:, None]], 1) for idx in indices]:
             unique, counts = torch.unique(ind, return_counts=True, dim=0)
@@ -212,13 +216,14 @@ class DFINECriterion(nn.Module):
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(self, outputs, targets, epoch=-1, **kwargs):
+    def forward(self, outputs, targets, global_step, epoch_step, **kwargs):
         """ This performs the loss computation.
         Parameters:
              outputs: dict of tensors, see the output specification of the model for the format
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
+        self.epoch_scale =  1 # + 3 * (global_step / epoch_step) / self.end_epoch
         outputs_without_aux = {k: v for k, v in outputs.items() if 'aux' not in k}
 
         # Retrieve the matching between the outputs of the last layer and the targets
@@ -226,17 +231,18 @@ class DFINECriterion(nn.Module):
 
         self.dfl_targets, self.dfl_targets_dn = None, None
         self.own_targets, self.own_targets_dn = None, None
+        self.num_pos, self.num_neg = None, None
         if 'aux_outputs' in outputs:
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for i, aux_outputs in enumerate(outputs['aux_outputs'] + [outputs['pre_outputs']]):
                 indices_aux = self.matcher(aux_outputs, targets)['indices']
-                cached_indices.append(indices_aux.copy())
-                indices_aux_list.append(indices_aux.copy())
+                cached_indices.append(indices_aux)
+                indices_aux_list.append(indices_aux)
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
                 indices_enc = self.matcher(aux_outputs, targets)['indices']
-                cached_indices_enc.append(indices_enc.copy())
-                indices_aux_list.append(indices_enc.copy()) # TODO
-            indices_go = self._get_go_indices(indices.copy(), indices_aux_list)
+                cached_indices_enc.append(indices_enc)
+                indices_aux_list.append(indices_enc) # TODO
+            indices_go = self._get_go_indices(indices, indices_aux_list)
             
             num_boxes_go = sum(len(x[0]) for x in indices_go)
             num_boxes_go = torch.as_tensor([num_boxes_go], dtype=torch.float, device=next(iter(outputs.values())).device)
@@ -340,10 +346,6 @@ class DFINECriterion(nn.Module):
                     l_dict = {k + f'_dn_pre': v for k, v in l_dict.items()}
                     losses.update(l_dict)   
                 
-            # with torch.no_grad():
-            #     losses.update({'UP0': outputs['up'][0], 
-            #                    'REG': outputs['reg_scale'][0],
-            #                    'offset': -(outputs['up'][0] + outputs['reg_scale'][0])})
         return losses
 
     def get_loss_meta_info(self, loss, outputs, targets, indices):

@@ -54,7 +54,7 @@ class DFINEPostProcessor(nn.Module):
 
         if self.use_focal_loss:
             scores = F.sigmoid(logits)
-            scores, index = torch.topk(scores.flatten(1), self.num_top_queries, dim=-1)
+            scores, index = torch.topk(scores.flatten(1), self.num_top_queries, dim=-1, sorted=False)
             # TODO for older tensorrt
             # labels = index % self.num_classes
             labels = mod(index, self.num_classes)

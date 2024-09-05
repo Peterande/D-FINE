@@ -89,9 +89,9 @@ if __name__ == '__main__':
     
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default='/home/pengys/code/rtdetrv2_pytorch/tb/dfine_b4_elanfl6_ema/best.pth', type=str, )
-    parser.add_argument('--output_file', '-o', default='./b4_elanfl6.onnx', type=str)
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b5_6x_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', type=str, )
+    parser.add_argument('--output_file', '-o', default='./b5_384.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
 

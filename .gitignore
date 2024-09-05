@@ -29,3 +29,6 @@ deployment/
 start.md
 weight/
 tb/
+tb0902/
+id_rsa
+id_rsa.pub

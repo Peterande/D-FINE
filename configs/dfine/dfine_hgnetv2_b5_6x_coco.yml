@@ -21,17 +21,16 @@ HGNetv2:
   freeze_at: 0
   freeze_norm: True
 
-
-
 HybridEncoder:
   # intra
-  hidden_dim: 384
+  hidden_dim: 320
   dim_feedforward: 2048
 
 DFINETransformer:
-  feat_channels: [384, 384, 384]
-  num_layers: 7
-  eval_idx: -2
+  feat_channels: [320, 320, 320]
+  num_layers: 6
+  eval_idx: -1
+  hidden_dim: 320
 
 optimizer:
   type: AdamW
@@ -47,3 +46,16 @@ optimizer:
   betas: [0.9, 0.999]
   weight_decay: 0.0001
 
+
+epoches: 80
+
+DFINECriterion:
+  end_epoch: 72
+
+train_dataloader: 
+  dataset: 
+    transforms:
+      policy:
+        epoch: 72
+  collate_fn:
+    stop_epoch: 72

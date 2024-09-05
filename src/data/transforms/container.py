@@ -62,7 +62,6 @@ class Compose(T.Compose):
     def stop_epoch_forward(self, *inputs: Any):
         sample = inputs if len(inputs) > 1 else inputs[0]
         dataset = sample[-1]
-        
         cur_epoch = dataset.epoch
         policy_ops = self.policy['ops']
         policy_epoch = self.policy['epoch']

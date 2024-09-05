@@ -60,7 +60,7 @@ class DetSolver(BaseSolver):
             
             self.last_epoch += 1
 
-            if self.output_dir:
+            if self.output_dir and epoch < self.train_dataloader.collate_fn.stop_epoch:
                 checkpoint_paths = [self.output_dir / 'last.pth']
                 # extra checkpoint before LR drop and every 100 epochs
                 if (epoch + 1) % args.checkpoint_freq == 0:
@@ -96,6 +96,7 @@ class DetSolver(BaseSolver):
                         dist_utils.save_on_master(self.state_dict(), self.output_dir / ('finetune_decay_' + str(self.ema.decay) + '.pth'))
                     else:
                         dist_utils.save_on_master(self.state_dict(), self.output_dir / 'best.pth')
+                        
                 elif epoch >= self.train_dataloader.collate_fn.stop_epoch:
                     self.load_resume_state(str(self.output_dir / 'best.pth'))
                     self.ema.decay -= 0.0001
