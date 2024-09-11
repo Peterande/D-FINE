@@ -14,32 +14,38 @@ DFINE:
   backbone: HGNetv2
 
 
+# HGNetv2:
+#   name: 'B3'
+#   return_idx: [1, 2, 3]
+#   freeze_at: -1
+#   freeze_norm: False
+#   use_lab: True
+
 HGNetv2:
   name: 'B3'
   return_idx: [1, 2, 3]
-  freeze_at: -1
-  freeze_norm: False
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
   use_lab: True
-
-DFINETransformer:
-  num_layers: 6
-  eval_idx: -3
 
 HybridEncoder:
   hidden_dim: 256
   depth_mult: 0.67
 
-epoches: 117
+DFINETransformer:
+  num_layers: 5
+  eval_idx: -2
 
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.00002
+      lr: 0.00005
     - 
       params: '^(?=.*backbone)(?=.*norm|bn).*$'
-      lr: 0.00002
+      lr: 0.00005
       weight_decay: 0.
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
@@ -50,10 +56,16 @@ optimizer:
   weight_decay: 0.0001
 
 
+epoches: 130
+
+DFINECriterion:
+  end_epoch: 120
+
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 118
+        epoch: 120
   collate_fn:
-    stop_epoch: 118
+    scales: [544, 576, 608, 640, 640, 640, 672, 704, 736]
+    stop_epoch: 120

@@ -23,14 +23,14 @@ HGNetv2:
 
 HybridEncoder:
   # intra
-  hidden_dim: 320
+  hidden_dim: 384
   dim_feedforward: 2048
+  expansion: 1.0
 
 DFINETransformer:
-  feat_channels: [320, 320, 320]
+  feat_channels: [384, 384, 384]
   num_layers: 6
   eval_idx: -1
-  hidden_dim: 320
 
 optimizer:
   type: AdamW

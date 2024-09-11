@@ -26,9 +26,8 @@ class DetSolver(BaseSolver):
         best_stat = {'epoch': -1, }
 
         start_time = time.time()
-        start_epcoch = self.last_epoch + 1
-        
-        for epoch in range(start_epcoch, args.epoches):
+        start_epoch = self.last_epoch + 1
+        for epoch in range(start_epoch, args.epoches):
 
             self.train_dataloader.set_epoch(epoch)
             # self.train_dataloader.dataset.set_epoch(epoch)
@@ -83,7 +82,7 @@ class DetSolver(BaseSolver):
                 if self.writer and dist_utils.is_main_process():
                     for i, v in enumerate(test_stats[k]):
                         self.writer.add_scalar(f'Test/{k}_{i}'.format(k), v, epoch)
-            
+                
                 if k in best_stat:
                     best_stat['epoch'] = epoch if test_stats[k][0] > best_stat[k] else best_stat['epoch']
                     best_stat[k] = max(best_stat[k], test_stats[k][0])
@@ -93,13 +92,14 @@ class DetSolver(BaseSolver):
 
                 if best_stat['epoch'] == epoch and self.output_dir:
                     if epoch >= self.train_dataloader.collate_fn.stop_epoch:
-                        dist_utils.save_on_master(self.state_dict(), self.output_dir / ('finetune_decay_' + str(self.ema.decay) + '.pth'))
+                        dist_utils.save_on_master(self.state_dict(), self.output_dir / ('ema_' + str(self.ema.decay) + '_{:.4f}.pth'.format(best_stat[k])))
                     else:
                         dist_utils.save_on_master(self.state_dict(), self.output_dir / 'best.pth')
                         
                 elif epoch >= self.train_dataloader.collate_fn.stop_epoch:
-                    self.load_resume_state(str(self.output_dir / 'best.pth'))
+                    best_stat = {'epoch': -1, }
                     self.ema.decay -= 0.0001
+                    self.load_resume_state(str(self.output_dir / 'best.pth'))
                     print(f'Refresh EMA at epoch {epoch} with decay {self.ema.decay}')
                     
             print(f'best_stat: {best_stat}')
