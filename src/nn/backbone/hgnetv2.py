@@ -7,7 +7,7 @@ from .common import get_activation, ConvNormLayer, FrozenBatchNorm2d
 from ...core import register
 from ...zoo.dfine.dbb import conv_bn, transI_fusebn, transII_addbranch, transIII_1x1_kxk, \
                              transV_avg, transVI_multiscale, IdentityBasedConv1x1, BNAndPadLayer
-from fairscale.nn.checkpoint import checkpoint_wrapper
+
 # Constants for initialization
 kaiming_normal_ = nn.init.kaiming_normal_
 zeros_ = nn.init.zeros_
@@ -157,6 +157,8 @@ class ACConvBNAct(nn.Module):
         init.constant_(self.hor_bn.weight, gamma_value)
 
     def single_init(self):
+        init.constant_(self.ver_conv.weight, 0.0)
+        init.constant_(self.hor_conv.weight, 0.0)
         init.constant_(self.bn.weight, 1.0)
         init.constant_(self.ver_bn.weight, 0.0)
         init.constant_(self.hor_bn.weight, 0.0)

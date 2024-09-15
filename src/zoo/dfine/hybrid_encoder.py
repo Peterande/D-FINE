@@ -1,6 +1,3 @@
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
-"""
-
 import copy
 from collections import OrderedDict
 
@@ -198,48 +195,6 @@ class RepNCSPELAN4(nn.Module):
         y = list(self.cv1(x).split((self.c, self.c), 1))
         y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
         return self.cv4(torch.cat(y, 1))
-    
-
-class RepNCSPELAN4f(nn.Module):
-    # csp-elan
-    def __init__(self, c1, c2, c4, n=3,  
-                 bias=False,
-                 act="silu"):
-        super().__init__()
-        self.c = c4
-        self.cv1 = ConvNormLayer_fuse(c1, 2*c4, 1, 1, bias=bias, act=act)
-        self.cv2 = CSPLayerf(c4, c4, n, bias=bias, act=act, bottletype=ACBlock)
-        self.cv3 = CSPLayerf(c4, c4, n, bias=bias, act=act, bottletype=ACBlock)   
-        self.cv4 = ConvNormLayer_fuse(4*c4, c2, 1, 1, bias=bias, act=act)
-
-    def forward_chunk(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
-        return self.cv4(torch.cat(y, 1))
-
-    def forward(self, x):
-        y = list(self.cv1(x).split((self.c, self.c), 1))
-        y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
-        return self.cv4(torch.cat(y, 1))
-    
-
-class CSPLayerf(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 num_blocks=3,
-                 bias=False,
-                 act="silu",
-                 bottletype=VGGBlock):
-        super(CSPLayerf, self).__init__()
-        self.conv1 = ConvNormLayer_fuse(2 * out_channels, out_channels, 1, 1, bias=bias, act=act)
-        self.bottlenecks = nn.Sequential(*[
-            bottletype(in_channels, out_channels, act=get_activation(act)) for _ in range(num_blocks)
-        ])
-
-    def forward(self, x):
-        x_1 = self.bottlenecks(x)
-        return self.conv1(torch.cat([x, x_1], 1))
     
       
 class CSPLayer(nn.Module):

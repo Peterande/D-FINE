@@ -109,7 +109,7 @@ class HungarianMatcher(nn.Module):
         indices_pre = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
         indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices_pre]
         
-        # Compute top3 indices
+        # Compute topk indices
         if return_topk:
             return {'indices': self.get_top_k_matches(C, sizes=sizes, k=return_topk, initial_indices=indices_pre)}
 

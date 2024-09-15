@@ -1,6 +1,3 @@
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
-"""
-
 import math
 from typing import List
 

@@ -69,10 +69,17 @@ def get_contrastive_denoising_training_group(targets,
         rand_sign = torch.randint_like(input_query_bbox, 0, 2) * 2.0 - 1.0
         rand_part = torch.rand_like(input_query_bbox)
         rand_part = (rand_part + 1.0) * negative_gt_mask + rand_part * (1 - negative_gt_mask)
+        # shrink_mask = torch.zeros_like(rand_sign)
+        # shrink_mask[:, :, :2] = (rand_sign[:, :, :2] == 1)  # rand_sign == 1 → (x1, y1) ↘ →  smaller bbox 
+        # shrink_mask[:, :, 2:] = (rand_sign[:, :, 2:] == -1)  # rand_sign == -1 →  (x2, y2) ↖ →  smaller bbox 
+        # mask = rand_part > (upper_bound / (upper_bound+1))
+        # # this is to make sure the dn bbox can be reversed to the original bbox by dfine head.
+        # rand_sign = torch.where((shrink_mask * (1 - negative_gt_mask) * mask).bool(), \
+        #                         rand_sign * upper_bound / (upper_bound+1) / rand_part, rand_sign)
         known_bbox += (rand_sign * rand_part * diff)
         known_bbox = torch.clip(known_bbox, min=0.0, max=1.0)
         input_query_bbox = box_xyxy_to_cxcywh(known_bbox)
-        # input_query_bbox[input_query_bbox < 0] *= -1
+        input_query_bbox[input_query_bbox < 0] *= -1
         input_query_bbox_unact = inverse_sigmoid(input_query_bbox)
 
     input_query_logits = class_embed(input_query_class)

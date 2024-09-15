@@ -19,17 +19,15 @@ HGNetv2:
   return_idx: [1, 2, 3]
   freeze_stem_only: True
   freeze_at: 0
-  freeze_norm: False
+  freeze_norm: True
 
 DFINETransformer:
   num_layers: 6
   eval_idx: -1
-  # dropout: 0.05
 
 HybridEncoder:
   depth_mult: 1.0
   expansion: 1.0
-  # dropout: 0.05
   
 optimizer:
   type: AdamW
@@ -38,10 +36,6 @@ optimizer:
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
       lr: 0.00001
     - 
-      params: '^(?=.*backbone)(?=.*norm|bn).*$'
-      lr: 0.00001
-      weight_decay: 0.
-    - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
       weight_decay: 0.
 
@@ -49,13 +43,8 @@ optimizer:
   betas: [0.9, 0.999]
   weight_decay: 0.0001
 
-# ema:
-#   decay: 0.9998
-
 epoches: 100
 
-DFINECriterion:
-  end_epoch: 72
 
 train_dataloader: 
   dataset: 
@@ -63,4 +52,5 @@ train_dataloader:
       policy:
         epoch: 72
   collate_fn:
+    scales: [480, 512, 544, 576, 608, 640, 640, 672, 704, 736, 768, 800]
     stop_epoch: 72

@@ -477,11 +477,7 @@ class TransformerDecoder(nn.Module):
 
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
-            if self.eval_idx == 100:
-                dec_out_logits.append(pre_scores)
-                dec_out_bboxes.append(pre_bboxes)           
-                dec_out_pred_corners.append(pred_corners)
-                dec_out_refs.append(ref_points_initial)     
+
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
                 scores = self.lqe_layers[i](scores, pred_corners)

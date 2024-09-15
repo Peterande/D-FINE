@@ -32,3 +32,10 @@ tb/
 tb0902/
 id_rsa
 id_rsa.pub
+saved_filtered_view/
+saved_predictions_view/
+code/
+*.zip
+*.jpg
+*.png
+*.ttf
