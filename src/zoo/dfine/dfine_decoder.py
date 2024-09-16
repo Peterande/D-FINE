@@ -556,7 +556,7 @@ class DFINETransformer(nn.Module):
         
         # Transformer module
         self.up = nn.Parameter(torch.tensor([0.5]), requires_grad=False)
-        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
+        self.reg_scale = nn.Parameter(torch.tensor([8.]), requires_grad=False)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
