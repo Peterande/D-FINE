@@ -15,7 +15,6 @@ pip install -r requirements.txt
 
 | Model | Dataset | Input Size | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | config | checkpoint (Stage 1) | checkpoint (Stage 2) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-
 **DFINE-X** | COCO | 640 | **55.8** | **73.7** | 62 | xxx | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [url](xxx.pth) | [url](xxx.pth)
 
 
