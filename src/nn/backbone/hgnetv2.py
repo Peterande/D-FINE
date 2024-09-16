@@ -505,7 +505,7 @@ class HGNetv2(nn.Module):
 
     def _freeze_parameters(self, m: nn.Module):
         for p in m.parameters():
-                p.requires_grad = False
+            p.requires_grad = False
 
     def forward(self, x):
         x = self.stem(x)

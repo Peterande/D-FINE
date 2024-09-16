@@ -416,7 +416,7 @@ class TransformerDecoder(nn.Module):
     
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
         value = value_proj(memory) if value_proj is not None else memory
-        value = F.interpolate(memory, size=value_scale) if value_scale is not None else memory
+        value = F.interpolate(memory, size=value_scale) if value_scale is not None else value
         if memory_mask is not None:
             value = value * memory_mask.to(value.dtype).unsqueeze(-1)
         value = value.reshape(value.shape[0], value.shape[1], self.num_head, -1)
@@ -556,7 +556,7 @@ class DFINETransformer(nn.Module):
         
         # Transformer module
         self.up = nn.Parameter(torch.tensor([0.5]), requires_grad=False)
-        self.reg_scale = nn.Parameter(torch.tensor([8.]), requires_grad=False)
+        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \

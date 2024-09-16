@@ -15,6 +15,7 @@ pip install -r requirements.txt
 
 | Model | Dataset | Input Size | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | config | Stage 1 | Stage 2 |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+**D-FINE-L** | COCO | 640 | **53.9** | **73.7** | 62 | xxx | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
 **D-FINE-X** | COCO | 640 | **55.8** | **73.7** | 62 | xxx | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
 
 
