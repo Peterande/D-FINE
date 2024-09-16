@@ -16,7 +16,7 @@ pip install -r requirements.txt
 | Model | Dataset | Input Size | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | config | checkpoint (Stage 1) | checkpoint (Stage 2) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 
-| **DFINE-X** | COCO | 640 | **55.8** | **73.7** | 62 | xxx | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [url](xxx.pth) | [url](xxx.pth) |
+**DFINE-X** | COCO | 640 | **55.8** | **73.7** | 62 | xxx | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [url](xxx.pth) | [url](xxx.pth)
 
 
 **Notes:**
@@ -73,23 +73,6 @@ If you use `DFINE` or `DFINEv2` in your work, please use the following BibTeX en
 <summary> bibtex </summary>
 
 ```latex
-@misc{lv2023detrs,
-      title={DETRs Beat YOLOs on Real-time Object Detection},
-      author={Wenyu Lv and Shangliang Xu and Yian Zhao and Guanzhong Wang and Jinman Wei and Cheng Cui and Yuning Du and Qingqing Dang and Yi Liu},
-      year={2023},
-      eprint={2304.08069},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
 
-@misc{lv2024dfineimprovedbaselinebagoffreebies,
-      title={DFINEv2: Improved Baseline with Bag-of-Freebies for Real-Time Detection Transformer}, 
-      author={Wenyu Lv and Yian Zhao and Qinyao Chang and Kui Huang and Guanzhong Wang and Yi Liu},
-      year={2024},
-      eprint={2407.17140},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2407.17140}, 
-}
 ```
 </details>
