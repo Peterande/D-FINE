@@ -39,7 +39,166 @@ class ConvBNAct(nn.Module):
             padding='',
             use_act=True,
             use_lab=False,
-            rep=False
+            deploy=False,
+            rep=False):
+        super().__init__()
+        self.use_act = use_act
+        self.use_lab = use_lab
+        self.conv = create_conv2d(
+            in_chs,
+            out_chs,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=groups,
+        )
+        self.rep = rep and kernel_size >= 3
+        self.bn = nn.BatchNorm2d(out_chs)
+
+        if self.use_act:
+            self.act = nn.ReLU()
+        else:
+            self.act = nn.Identity()
+        if self.use_act and self.use_lab:
+            self.lab = LearnableAffineBlock()
+        else:
+            self.lab = nn.Identity()
+            
+        self.deploy = deploy
+
+        if deploy:
+            self.fused_conv = create_conv2d(
+            in_chs,
+            out_chs,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=groups,
+        )
+        elif self.rep:
+            if self.conv.padding[0] - kernel_size // 2 >= 0:
+                #   Common use case. E.g., k=3, p=1 or k=5, p=2
+                self.crop = 0
+                #   Compared to the KxK layer, the padding of the 1xK layer and Kx1 layer should be adjust to align the sliding windows (Fig 2 in the paper)
+                hor_padding = [self.conv.padding[0] - kernel_size // 2, self.conv.padding[0]]
+                ver_padding = [self.conv.padding[0], self.conv.padding[0] - kernel_size // 2]
+            else:
+                #   A negative "padding" (padding - kernel_size//2 < 0, which is not a common use case) is cropping.
+                #   Since nn.Conv2d does not support negative padding, we implement it manually
+                self.crop = kernel_size // 2 - self.conv.padding[0]
+                hor_padding = [0, self.conv.padding[0]]
+                ver_padding = [self.conv.padding[0], 0]
+
+            self.ver_conv = create_conv2d(
+                in_chs,
+                out_chs,
+                (kernel_size, 1),
+                stride=stride,
+                padding=ver_padding,
+                groups=groups,
+            )
+
+            self.hor_conv = create_conv2d(
+                in_chs,
+                out_chs,
+                (1, kernel_size),
+                stride=stride,
+                padding=hor_padding,
+                groups=groups,
+            )
+            self.ver_bn = nn.BatchNorm2d(num_features=out_chs)
+            self.hor_bn = nn.BatchNorm2d(num_features=out_chs)
+            self.single_init()
+
+    def _fuse_bn_tensor(self, conv, bn):
+        std = (bn.running_var + bn.eps).sqrt()
+        t = (bn.weight / std).reshape(-1, 1, 1, 1)
+        return conv.weight * t, bn.bias - bn.running_mean * bn.weight / std
+
+    def _add_to_square_kernel(self, square_kernel, asym_kernel):
+        asym_h = asym_kernel.size(2)
+        asym_w = asym_kernel.size(3)
+        square_h = square_kernel.size(2)
+        square_w = square_kernel.size(3)
+        square_kernel[:, :, square_h // 2 - asym_h // 2: square_h // 2 - asym_h // 2 + asym_h,
+                square_w // 2 - asym_w // 2: square_w // 2 - asym_w // 2 + asym_w] += asym_kernel
+
+    def get_equivalent_kernel_bias(self):
+        hor_k, hor_b = self._fuse_bn_tensor(self.hor_conv, self.hor_bn)
+        ver_k, ver_b = self._fuse_bn_tensor(self.ver_conv, self.ver_bn)
+        square_k, square_b = self._fuse_bn_tensor(self.conv, self.bn)
+        self._add_to_square_kernel(square_k, hor_k)
+        self._add_to_square_kernel(square_k, ver_k)
+        return square_k, hor_b + ver_b + square_b
+    
+    def convert_to_deploy(self):
+        self.fused_conv = nn.Conv2d(in_channels=self.conv.in_channels, out_channels=self.conv.out_channels,
+                                    kernel_size=self.conv.kernel_size, stride=self.conv.stride,
+                                    padding=self.conv.padding, dilation=self.conv.dilation, groups=self.conv.groups, bias=True,
+                                    padding_mode=self.conv.padding_mode)
+        if self.rep:
+            deploy_k, deploy_b = self.get_equivalent_kernel_bias()
+            self.deploy = True
+            self.__delattr__('conv')
+            self.__delattr__('bn')
+            self.__delattr__('hor_conv')
+            self.__delattr__('hor_bn')
+            self.__delattr__('ver_conv')
+            self.__delattr__('ver_bn')
+            self.fused_conv.weight.data = deploy_k
+            self.fused_conv.bias.data = deploy_b
+        else:
+            deploy_k, deploy_b = self._fuse_bn_tensor(self.conv, self.bn)
+            self.__delattr__('conv')
+            self.__delattr__('bn')
+            self.fused_conv.weight.data = deploy_k
+            self.fused_conv.bias.data = deploy_b            
+
+    def init_gamma(self, gamma_value):
+        init.constant_(self.bn.weight, gamma_value)
+        init.constant_(self.ver_bn.weight, gamma_value)
+        init.constant_(self.hor_bn.weight, gamma_value)
+
+    def single_init(self):
+        init.constant_(self.ver_conv.weight, 0.0)
+        init.constant_(self.hor_conv.weight, 0.0)
+        init.constant_(self.bn.weight, 1.0)
+        init.constant_(self.ver_bn.weight, 0.0)
+        init.constant_(self.hor_bn.weight, 0.0)
+
+    def forward(self, input):
+        if hasattr(self, 'fused_conv'):
+            return self.lab(self.act(self.fused_conv(input)))
+        elif not self.rep:
+            return self.lab(self.act(self.bn(self.conv(input))))
+        else:
+            square_outputs = self.conv(input)
+            square_outputs = self.bn(square_outputs)
+            if self.crop > 0:
+                ver_input = input[:, :, :, self.crop:-self.crop]
+                hor_input = input[:, :, self.crop:-self.crop, :]
+            else:
+                ver_input = input
+                hor_input = input
+            vertical_outputs = self.ver_conv(ver_input)
+            vertical_outputs = self.ver_bn(vertical_outputs)
+            horizontal_outputs = self.hor_conv(hor_input)
+            horizontal_outputs = self.hor_bn(horizontal_outputs)
+            result = square_outputs + vertical_outputs + horizontal_outputs
+            return self.lab(self.act(result))
+            
+                   
+class ORIConvBNAct(nn.Module):
+    def __init__(
+            self,
+            in_chs,
+            out_chs,
+            kernel_size,
+            stride=1,
+            groups=1,
+            padding='',
+            use_act=True,
+            use_lab=False
     ):
         super().__init__()
         self.use_act = use_act
@@ -464,41 +623,20 @@ class HGNetv2(nn.Module):
             self._freeze_norm(self)
 
         if pretrained:
-            prefix = 'weight/hgnetv2/PPHGNetV2_'
-            stage1 = "stage1_"
-            # stage1 = ""
-            if stage1 == "":
-                print("Loading stage2 HGNetV2")
-            else:
-                print("Loading stage1 HGNetV2")
-            
-            if name == 'B0':
-                state = torch.load(prefix + 'B0_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B1':
-                state = torch.load(prefix + 'B1_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B2':
-                state = torch.load(prefix + 'B2_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B3':
-                state = torch.load(prefix + 'B3_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B4':
-                state = torch.load(prefix + 'B4_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B5':
-                state = torch.load(prefix + 'B5_ssld_' + stage1 + 'pretrained.pth')
-            elif name == 'B6':
-                state = torch.load(prefix + 'B6_ssld_' + stage1 + 'pretrained.pth')
-            else:
-                raise ValueError(f'Unknown PPHGNetV2 version: {name}')
-            
+            prefix = 'weight/hgnetv2/PPHGNetV2_'  
+            state = torch.load(prefix + name + '_ssld_stage1_pretrained.pth')
             self.load_state_dict(state, strict=False)
-            print(f'Load HGNetV2 state_dict')
-
+            print("Loaded stage1 " + name + " HGNetV2")
 
     def _freeze_norm(self, m: nn.Module):
         if isinstance(m, nn.BatchNorm2d):
             m = FrozenBatchNorm2d(m.num_features)
         else:
             for name, child in m.named_children():
-                _child = self._freeze_norm(child)
+                if name not in ['bn_rep', 'bn_rep1', 'bn_rep2', 'avgbn', 'ver_bn', 'hor_bn']:
+                    _child = self._freeze_norm(child)
+                else:
+                    _child = child
                 if _child is not child:
                     setattr(m, name, _child)
         return m

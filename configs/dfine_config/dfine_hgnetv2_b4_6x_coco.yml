@@ -45,12 +45,10 @@ optimizer:
 
 epoches: 100
 
-
 train_dataloader: 
   dataset: 
     transforms:
       policy:
         epoch: 72
   collate_fn:
-    scales: [480, 512, 544, 576, 608, 640, 640, 640, 640, 672, 704, 736, 768, 800]
     stop_epoch: 72

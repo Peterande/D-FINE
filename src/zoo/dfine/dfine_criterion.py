@@ -58,8 +58,6 @@ class DFINECriterion(nn.Module):
         self.own_targets, self.own_targets_dn = None, None
         self.reg_max = reg_max
         self.num_pos, self.num_neg = None, None
-        self.epoch_scale = 1
-        self.end_epoch = end_epoch
         
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -169,7 +167,7 @@ class DFINECriterion(nn.Module):
                     self.num_pos, self.num_neg = (mask.sum() / mask.numel()) ** 0.5, ((~mask).sum() / mask.numel()) ** 0.5
                 loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
                 loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
-                losses['loss_local'] = self.epoch_scale * (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
+                losses['loss_local'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
 
         return losses
 
@@ -223,7 +221,6 @@ class DFINECriterion(nn.Module):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
-        self.epoch_scale =  1 # + 3 * (global_step / epoch_step) / self.end_epoch
         outputs_without_aux = {k: v for k, v in outputs.items() if 'aux' not in k}
 
         # Retrieve the matching between the outputs of the last layer and the targets
@@ -236,12 +233,12 @@ class DFINECriterion(nn.Module):
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for i, aux_outputs in enumerate(outputs['aux_outputs'] + [outputs['pre_outputs']]):
                 indices_aux = self.matcher(aux_outputs, targets)['indices']
-                cached_indices.append(indices_aux)
+                cached_indices.append(indices_aux.copy())
                 indices_aux_list.append(indices_aux)
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
                 indices_enc = self.matcher(aux_outputs, targets)['indices']
-                cached_indices_enc.append(indices_enc)
-                indices_aux_list.append(indices_enc) # TODO
+                cached_indices_enc.append(indices_enc.copy())
+                indices_aux_list.append(indices_enc) # TODO check copy
             indices_go = self._get_go_indices(indices, indices_aux_list)
             
             num_boxes_go = sum(len(x[0]) for x in indices_go)
