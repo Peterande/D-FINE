@@ -618,6 +618,9 @@ class DFINETransformer(nn.Module):
 
     def convert_to_deploy(self):
         self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.dec_score_head[self.eval_idx]])
+        self.dec_bbox_head = nn.ModuleList(
+            [self.dec_bbox_head[i] if i <= self.eval_idx else nn.Identity() for i in range(len(self.dec_bbox_head))]
+        )
 
     def _reset_parameters(self):
         bias = bias_init_with_prob(0.01)

@@ -87,7 +87,7 @@ def main(args, ):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b5_6x_coco.yml', type=str, )
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b2_6x_coco.yml', type=str, )
     parser.add_argument('--resume', '-r', type=str, )
     args = parser.parse_args()
 

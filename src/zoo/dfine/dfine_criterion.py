@@ -146,7 +146,7 @@ class DFINECriterion(nn.Module):
             weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
             
             losses['loss_dfl'] = self.unimodal_distribution_focal_loss(
-                pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
+                pred_corners, target_corners, weight_right, weight_left, weight_targets ** 4, avg_factor=num_boxes)
         
         if 'teacher_corners' in outputs:  
             pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))       
@@ -233,11 +233,11 @@ class DFINECriterion(nn.Module):
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for i, aux_outputs in enumerate(outputs['aux_outputs'] + [outputs['pre_outputs']]):
                 indices_aux = self.matcher(aux_outputs, targets)['indices']
-                cached_indices.append(indices_aux.copy())
+                cached_indices.append(indices_aux)
                 indices_aux_list.append(indices_aux)
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
                 indices_enc = self.matcher(aux_outputs, targets)['indices']
-                cached_indices_enc.append(indices_enc.copy())
+                cached_indices_enc.append(indices_enc)
                 indices_aux_list.append(indices_enc) # TODO check copy
             indices_go = self._get_go_indices(indices, indices_aux_list)
             

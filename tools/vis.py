@@ -24,6 +24,17 @@ def custom_repr(self):
 original_repr = torch.Tensor.__repr__
 torch.Tensor.__repr__ = custom_repr
 
+
+def generate_linspace(reg_max, up, reg_scale, ref, deploy=True):
+    if deploy:
+        upper_bound1 = (abs(up) * abs(reg_scale))
+        upper_bound2 = (abs(up) * abs(reg_scale) * 2)
+        step = (upper_bound1 + 1) ** (2 / (reg_max - 2))
+        left_values = [-(step) ** i + 1 for i in range(reg_max // 2 - 1, 0, -1)]
+        right_values = [(step) ** i - 1 for i in range(1, reg_max // 2)]
+        values = [-upper_bound2] + left_values + [0] + right_values + [upper_bound2]
+        return torch.tensor(values, device=ref.device, dtype=ref.dtype)
+    
 def box_cxcywh_to_xyxy(x):
     x_c, y_c, w, h = x.unbind(-1)
     b = [(x_c - 0.5 * w.clamp(min=0.0)), (y_c - 0.5 * h.clamp(min=0.0)),
@@ -47,30 +58,58 @@ def draw_bounding_boxes(image_pil, boxes_first, boxes_last, distributions_first,
     :param confidence_threshold: Minimum confidence score to draw the bounding box
     """
     # Convert PIL Image to OpenCV image
-    image = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR) 
-    width, height = image_size
-    if width < 640:
-        scale = 640 / width
-        image = cv2.resize(image, (640, int(height * scale)), interpolation=cv2.INTER_LINEAR)
-        width, height = 640, int(height * scale)
-    cut = height + 150 - 1150 // 2
+    image = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+    original_width, original_height = image_size
+
+    # Resize image if it's smaller than 640 pixels wide
+    if original_width < 1280:
+        scale = 1280 / original_width
+        image = cv2.resize(image, (1280, int(original_height * scale)), interpolation=cv2.INTER_LINEAR)
+        width, height = 1280, int(original_height * scale)
+    else:
+        scale = 1.0
+        width, height = original_width, original_height
+
+    # Determine the amount to cut from the image
+    cut = height + 300 - 1150
     if clip:
         image = image[cut:, :]
+        crop_offset = cut
     else:
         image = image[:-cut, :]
-    width, height = width * 2, (height-cut) * 2
-    image = cv2.resize(image, (width, height), interpolation=cv2.INTER_LINEAR)
+        crop_offset = 0
 
-    # Get the boxes and distributions at the index 'flag' from both layers
-    box_first = boxes_first[flag] * torch.tensor([width, height, width, height]).cuda()
-    box_last = boxes_last[flag] * torch.tensor([width, height, width, height]).cuda()
+    # Update image dimensions after cropping
+    height, width = image.shape[:2]
+
+    # Adjust the boxes to account for the crop and resizing
+    box_first = boxes_first[flag]
+    box_last = boxes_last[flag]
+
+    # Scale boxes from normalized coordinates to original image size
+    box_first = box_first * torch.tensor([original_width, original_height, original_width, original_height], device=box_first.device)
+    box_last = box_last * torch.tensor([original_width, original_height, original_width, original_height], device=box_last.device)
+
+    # Adjust for resizing if applicable
+    if scale != 1.0:
+        box_first *= scale
+        box_last *= scale
+
+    # Adjust for cropping
+    box_first[1] -= crop_offset # - 30 000000365208
+    box_first[3] -= crop_offset
+    box_last[1] -= crop_offset # - 30
+    box_last[3] -= crop_offset
+
+    # Clamp box coordinates to the image dimensions
+    min_tensor = torch.zeros_like(box_first)
+    max_tensor = torch.tensor([width, height, width, height], device=box_first.device)
+    box_first = box_first.clamp(min=min_tensor, max=max_tensor)
+    box_last = box_last.clamp(min=min_tensor, max=max_tensor)
 
     box_first = box_first.int().tolist()
     box_last = box_last.int().tolist()
-
-    distributions_first = distributions_first[flag].reshape(4, 33).softmax(-1)
-    distributions_last = distributions_last[flag].reshape(4, 33).softmax(-1)
-
+    
     # Draw first layer bounding box in blue
     cv2.rectangle(image, (box_first[0], box_first[1]), (box_first[2], box_first[3]), (0, 0, 255), 4)  # Blue box
 
@@ -127,61 +166,82 @@ def draw_bounding_boxes(image_pil, boxes_first, boxes_last, distributions_first,
         # Update y coordinate for next label
         y_label += line_height
 
-    # Convert PIL Image back to OpenCV image
+    # Prepare distributions
     image = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+    distributions_first_unweighted = distributions_first[flag].reshape(4, 33).softmax(-1).cpu()
+    distributions_last_unweighted = distributions_last[flag].reshape(4, 33).softmax(-1).cpu()
+    
+    # Generate project for weighting
+    project = generate_linspace(32, 0.5, 8, distributions_first_unweighted)
+    # Apply weighting
+    distributions_first_weighted = distributions_first_unweighted * project
+    distributions_last_weighted = distributions_last_unweighted * project
 
     # Now, generate plots for each distribution and overlay them onto the image
-    plot_height = 300  # Height of the plot images
+    plot_height = 300  # Height of each plot image
     plot_width = image.shape[1] // 4  # Width of each plot image
-    total_height = image.shape[0] + plot_height  # Total height for the new image
-    print(total_height)
+    num_rows = 2  # Number of rows for unweighted and weighted plots
+    total_height = image.shape[0] + plot_height * num_rows  # Total height for the new image
+
     new_image = np.zeros((total_height, image.shape[1], 3), dtype=np.uint8)
     new_image[0:image.shape[0], :, :] = image
 
     titles = ['Left', 'Top', 'Right', 'Bottom']
-    for i in range(4):
-        dist_first = distributions_first[i].cpu().numpy()
-        dist_last = distributions_last[i].cpu().numpy()
-        title = titles[i]
-        fig = Figure(figsize=(plot_width/100, plot_height/100), dpi=100)
-        canvas = FigureCanvas(fig)
-        ax = fig.gca()
-        x = np.arange(len(dist_first))
+    for row in range(num_rows):
+        for i in range(4):
+            if row == 0:
+                # Unweighted distributions
+                dist_first = distributions_first_unweighted[i].numpy()
+                dist_last = distributions_last_unweighted[i].numpy()
+                row_title = ''
+            else:
+                # Weighted distributions
+                dist_first = distributions_first_weighted[i].numpy()
+                dist_last = distributions_last_weighted[i].numpy()
+                row_title = ' (Weighted)'
+            title = f"{titles[i]}{row_title}"
+            fig = Figure(figsize=(plot_width/100, plot_height/100), dpi=100)
+            canvas = FigureCanvas(fig)
+            ax = fig.gca()
+            x = np.arange(len(dist_first))
 
-        # **Modified here: Replace bar plots with line plots**
-        # Plot both distributions on the same plot
-        ax.plot(x, dist_first, label='Initial BBox and Distributions', color='red', linewidth=2)
-        ax.plot(x, dist_last, label='Final BBox and Distributions', color='green', linewidth=2)
+            # Plot both distributions on the same plot without labels
+            ax.plot(x, dist_first, label='Initial BBox and Distributions', color='red', linewidth=2)
+            ax.plot(x, dist_last, label='Final BBox and Distributions', color='green', linewidth=2)
 
-        # Set x-axis ticks to 0, 16, and 33
-        ax.set_xticks([0, 16, 32])
-        ax.set_xticklabels(['0', '16', '33'], fontsize=16)
+            # Set x-axis ticks to 0, 16, and 32
+            ax.set_xticks([0, 16, 32])
+            ax.set_xticklabels(['0', '16', '32'], fontsize=16)
 
-        max_value = max(dist_first.max(), dist_last.max()) * 1.1
-        # Set y-axis ticks to 0 and maximum value
-        ax.set_yticks([0, max_value])
-        ax.set_yticklabels(['0', f'{max_value:.2f}'], fontsize=16)
+            # Find min and max values for consistent y-axis scaling
+            max_value = max(dist_first.max(), dist_last.max()) * 1.1
+            min_value = min(dist_first.min(), dist_last.min()) * 1.1
 
-        # Set y-axis limit to ensure all plots have the same scale
-        ax.set_ylim(0, max_value)
+            # Set y-axis ticks
+            ax.set_yticks([min_value, 0, max_value])
+            ax.set_yticklabels([f'{min_value:.2f}', '0', f'{max_value:.2f}'], fontsize=16)
 
-        ax.set_title(title, fontsize=22)  # Adjust title font size
-        ax.tick_params(axis='both', which='major', labelsize=16)  # Adjust tick label font size
+            # Set y-axis limits
+            ax.set_ylim(min_value, max_value)
 
-        # # Optionally add legend
-        # ax.legend(fontsize=12)
+            ax.set_title(title, fontsize=18)  # Adjust title font size
+            ax.tick_params(axis='both', which='major', labelsize=14)  # Adjust tick label font size
 
-        fig.tight_layout()
-        canvas.draw()
-        buf = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
-        buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        plot_img = cv2.cvtColor(buf, cv2.COLOR_RGB2BGR)
-        plot_img = cv2.resize(plot_img, (plot_width, plot_height))
-        x_offset = i * plot_width
-        new_image[image.shape[0]:, x_offset:x_offset+plot_width, :] = plot_img
+            # Do not add legend in the plot
+
+            fig.tight_layout()
+            canvas.draw()
+            buf = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
+            buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plot_img = cv2.cvtColor(buf, cv2.COLOR_RGB2BGR)
+            plot_img = cv2.resize(plot_img, (plot_width, plot_height))
+            x_offset = i * plot_width
+            y_offset = image.shape[0] + row * plot_height
+            new_image[y_offset:y_offset+plot_height, x_offset:x_offset+plot_width, :] = plot_img
 
     cv2.imwrite(save_path, new_image)
     print(f"Predicted image saved at {save_path}")
+
 
 
 
