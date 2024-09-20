@@ -13,62 +13,24 @@ from .denoising import get_contrastive_denoising_training_group
 from .utils import deformable_attention_core_func_v2, get_activation, inverse_sigmoid
 from .utils import bias_init_with_prob
 from ...core import register
+from .box_ops import box_xyxy_to_cxcywh
 
 __all__ = ['DFINETransformer']
 
-def box_xyxy_to_cxcywh(x):
-    x0, y0, x1, y1 = x.unbind(-1)
-    b = [(x0 + x1) / 2, (y0 + y1) / 2,
-         (x1 - x0), (y1 - y0)]
-    return torch.stack(b, dim=-1)
 
+def weighting_function(reg_max, up, reg_scale, deploy=False):
+    """
+    Generates a sequence of weights for bounding box regression.
 
-def get_index_in_sequence_tensor(values, reg_max, reg_scale, up):
-    values = values.reshape(-1)
-    function_values = generate_linspace(reg_max, up, reg_scale)
+    Args:
+        reg_max (int): Max value of the discrete set.
+        up (Tensor): Controls upper bounds of the sequence.
+        reg_scale (float): Controls the curvature of the weights.
+        deploy (bool): If True, uses deployment mode settings.
 
-    # Step 1: Find the closest left-side indices for each value
-    diffs = function_values.unsqueeze(0) - values.unsqueeze(1)
-    
-    # Find closest left-side indices
-    mask = diffs <= 0
-    closest_left_indices = torch.sum(mask, dim=1) - 1  # last True indices
-
-    # Step 2: Calculate the weights for the interpolation
-    indices = closest_left_indices.float()
-
-    weight_right = torch.zeros_like(indices)
-    weight_left = torch.zeros_like(indices)
-
-    valid_idx_mask = (indices >= 0) & (indices < reg_max)  # Valid indices
-    valid_indices = indices[valid_idx_mask].long()
-
-    # Obtain distances
-    left_values = function_values[valid_indices]
-    right_values = function_values[valid_indices + 1]
-
-    left_diffs = torch.abs(values[valid_idx_mask] - left_values)
-    right_diffs = torch.abs(right_values - values[valid_idx_mask])
-
-    # Valid weights
-    weight_right[valid_idx_mask] = left_diffs / (left_diffs + right_diffs)
-    weight_left[valid_idx_mask] = 1.0 - weight_right[valid_idx_mask]
-
-    # Invalid weights (out of range)
-    invalid_idx_mask_neg = (indices < 0)
-    weight_right[invalid_idx_mask_neg] = 0.0
-    weight_left[invalid_idx_mask_neg] = 1.0
-    indices[invalid_idx_mask_neg] = 0.0
-    
-    invalid_idx_mask_pos = (indices >= reg_max)
-    weight_right[invalid_idx_mask_pos] = 1.0
-    weight_left[invalid_idx_mask_pos] = 0.0
-    indices[invalid_idx_mask_pos] = reg_max - 0.1
-
-    return indices, weight_right, weight_left
-
-
-def generate_linspace(reg_max, up, reg_scale, deploy=False):
+    Returns:
+        Tensor: Sequence of weights.
+    """
     if deploy:
         upper_bound1 = (abs(up[0]) * abs(reg_scale)).item()
         upper_bound2 = (abs(up[0]) * abs(reg_scale) * 2).item()
@@ -88,14 +50,16 @@ def generate_linspace(reg_max, up, reg_scale, deploy=False):
     
        
 class Integral(nn.Module):
-    """A fixed layer for calculating integral result from distribution.
-    This layer calculates the target location by :math: `sum{P(y_i) * y_i}`,
-    P(y_i) denotes the softmax vector that represents the discrete distribution
-    y_i denotes the discrete set, usually {0, 1, 2, ..., reg_max}
+    """
+    A layer that calculates integral results from a distribution.
+
+    This layer computes the target location using the formula: `sum{P(n) * W(n)}`, 
+    where P(n) is the softmax probability vector representing the discrete 
+    distribution, and W(n) are the weights associated with each discrete position.
+
     Args:
-        reg_max (int): The maximal value of the discrete set. Default: 32. You
-            may want to reset it according to your new dataset or related
-            settings.
+        reg_max (int): Maximum value of the discrete set. Default is 16. 
+                       It can be adjusted based on the dataset or task requirements.
     """
 
     def __init__(self, reg_max=16):
@@ -103,15 +67,6 @@ class Integral(nn.Module):
         self.reg_max = reg_max
 
     def forward(self, x, project):
-        """Forward feature from the regression head to get integral result of
-        bounding box location.
-        Args:
-            x (Tensor): Features of the regression head, shape (N, 4*(n+1)),
-                n is self.reg_max.
-        Returns:
-            x (Tensor): Integral result of box locations, i.e., distance
-                offsets from the box center in four directions, shape (N, 4).
-        """
         shape = x.shape
         x = F.softmax(x.reshape(-1, self.reg_max + 1), dim=1)
         x = F.linear(x, project.to(x.device)).reshape(-1, 4)
@@ -119,15 +74,19 @@ class Integral(nn.Module):
 
 
 def distance2bbox(points, distance, reg_scale):
-    """Decode distance prediction to bounding box.
+    """
+    Decodes relative distances into bounding box coordinates.
 
     Args:
-        points (Tensor): Shape (B, N, 4) or (N, 4).
-        distance (Tensor): Relative distance from the given point to 4
-            boundaries (left, top, right, bottom). Shape (B, N, 4) or (N, 4)
+        points (Tensor): (B, N, 4) or (N, 4) format, representing [x, y, w, h], 
+                         where (x, y) is the center and (w, h) are width and height.
+        distance (Tensor): (B, N, 4) or (N, 4), representing distances from the 
+                           point to the left, top, right, and bottom boundaries.
+
+        reg_scale (float): Controls the curvature of the distribution.
 
     Returns:
-        Tensor: Boxes with shape (N, 4) or (B, N, 4)
+        Tensor: Bounding boxes in (N, 4) or (B, N, 4) format [cx, cy, w, h].
     """
     reg_scale = abs(reg_scale)
     x1 = points[..., 0] - (0.5 * reg_scale + distance[..., 0]) * (points[..., 2] / reg_scale)
@@ -140,14 +99,62 @@ def distance2bbox(points, distance, reg_scale):
     return box_xyxy_to_cxcywh(bboxes)
 
 
+def translate_gt(gt, reg_max, reg_scale, up):
+    gt = gt.reshape(-1)
+    function_values = weighting_function(reg_max, up, reg_scale)
+
+    # Step 1: Find the closest left-side indices for each value
+    diffs = function_values.unsqueeze(0) - gt.unsqueeze(1)
+    
+    # Find closest left-side indices
+    mask = diffs <= 0
+    closest_left_indices = torch.sum(mask, dim=1) - 1
+
+    # Step 2: Calculate the weights for the interpolation
+    indices = closest_left_indices.float()
+
+    weight_right = torch.zeros_like(indices)
+    weight_left = torch.zeros_like(indices)
+
+    valid_idx_mask = (indices >= 0) & (indices < reg_max)
+    valid_indices = indices[valid_idx_mask].long()
+
+    # Obtain distances
+    left_values = function_values[valid_indices]
+    right_values = function_values[valid_indices + 1]
+
+    left_diffs = torch.abs(gt[valid_idx_mask] - left_values)
+    right_diffs = torch.abs(right_values - gt[valid_idx_mask])
+
+    # Valid weights
+    weight_right[valid_idx_mask] = left_diffs / (left_diffs + right_diffs)
+    weight_left[valid_idx_mask] = 1.0 - weight_right[valid_idx_mask]
+
+    # Invalid weights (out of range)
+    invalid_idx_mask_neg = (indices < 0)
+    weight_right[invalid_idx_mask_neg] = 0.0
+    weight_left[invalid_idx_mask_neg] = 1.0
+    indices[invalid_idx_mask_neg] = 0.0
+    
+    invalid_idx_mask_pos = (indices >= reg_max)
+    weight_right[invalid_idx_mask_pos] = 1.0
+    weight_left[invalid_idx_mask_pos] = 0.0
+    indices[invalid_idx_mask_pos] = reg_max - 0.1
+
+    return indices, weight_right, weight_left
+
+
 def bbox2distance(points, bbox, reg_max, reg_scale, up, eps=0.1):
-    """Decode bounding box based on distances.
+    """
+    Converts bounding box coordinates to distances from a reference point.
 
     Args:
-        points (Tensor): Shape (n, 4), [x, y, w, h].
-        bbox (Tensor): Shape (n, 4), "xyxy" format
-        reg_max (float): Total bin number.
-        eps (float): a small value to ensure target < reg_max, instead <=
+        points (Tensor): (n, 4) [x, y, w, h], where (x, y) is the center.
+        bbox (Tensor): (n, 4) bounding boxes in "xyxy" format.
+        reg_max (float): Maximum bin value.
+        reg_scale (float): Controling curvarture of W(n).
+        up (Tensor): Controling upper bounds of W(n).
+        eps (float): Small value to ensure target < reg_max.
 
     Returns:
         Tensor: Decoded distances.
@@ -158,12 +165,12 @@ def bbox2distance(points, bbox, reg_max, reg_scale, up, eps=0.1):
     right  = (bbox[:, 2] - points[:, 0]) / (points[..., 2] / reg_scale + 1e-16) - 0.5 * reg_scale
     bottom = (bbox[:, 3] - points[:, 1]) / (points[..., 3] / reg_scale + 1e-16) - 0.5 * reg_scale
     four_lens = torch.stack([left, top, right, bottom], -1)
-    four_lens, weight_right, weight_left = get_index_in_sequence_tensor(four_lens, reg_max, reg_scale, up)
+    four_lens, weight_right, weight_left = translate_gt(four_lens, reg_max, reg_scale, up)
     if reg_max is not None:
         four_lens = four_lens.clamp(min=0, max=reg_max-eps)
     return four_lens.reshape(-1).detach(), weight_right.detach(), weight_left.detach()
 
-  
+
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers, act='relu'):
         super().__init__()
@@ -252,7 +259,6 @@ class MSDeformableAttention(nn.Module):
                 bottom-right (1, 1), including padding area
             value (Tensor): [bs, value_length, C]
             value_spatial_shapes (List): [n_levels, 2], [(H_0, W_0), (H_1, W_1), ..., (H_{L-1}, W_{L-1})]
-            value_mask (Tensor): [bs, value_length], True for non-padding elements, False for padding elements
 
         Returns:
             output (Tensor): [bs, Length_{query}, C]
@@ -401,6 +407,14 @@ class LQE(nn.Module):
     
        
 class TransformerDecoder(nn.Module):
+    """
+    Transformer Decoder implementing Fine-grained Distribution Refinement (FDR).
+
+    This decoder refines object detection predictions through iterative updates across multiple layers, 
+    utilizing attention mechanisms, location quality estimators, and distribution refinement techniques 
+    to improve bounding box accuracy and robustness.
+    """
+
     def __init__(self, hidden_dim, decoder_layer, decoder_layer_wide, num_layers, num_head, reg_max, reg_scale, up,
                  eval_idx=-1, layer_scale=2):
         super(TransformerDecoder, self).__init__()
@@ -415,6 +429,9 @@ class TransformerDecoder(nn.Module):
         self.lqe_layers = nn.ModuleList([copy.deepcopy(LQE(4, 64, 2, reg_max)) for _ in range(num_layers)])
     
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
+        """
+        Preprocess values for MSDeformableAttention.
+        """
         value = value_proj(memory) if value_proj is not None else memory
         value = F.interpolate(memory, size=value_scale) if value_scale is not None else value
         if memory_mask is not None:
@@ -424,7 +441,7 @@ class TransformerDecoder(nn.Module):
         return value.permute(0, 2, 3, 1).split(split_shape, dim=-1)
                 
     def convert_to_deploy(self):
-        self.project = generate_linspace(self.reg_max, self.up, self.reg_scale, deploy=True)
+        self.project = weighting_function(self.reg_max, self.up, self.reg_scale, deploy=True)
         self.layers = self.layers[:self.eval_idx + 1]
         self.lqe_layers = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]])
         
@@ -452,7 +469,7 @@ class TransformerDecoder(nn.Module):
         dec_out_pred_corners = []
         dec_out_refs = []
         if not hasattr(self, 'project'):
-            project = generate_linspace(self.reg_max, up, reg_scale)  
+            project = weighting_function(self.reg_max, up, reg_scale)  
         else:
             project = self.project  
             
@@ -462,6 +479,7 @@ class TransformerDecoder(nn.Module):
             ref_points_input = ref_points_detach.unsqueeze(2)
             query_pos_embed = query_pos_head(ref_points_detach)
              
+            # TODO Adjust scale if needed for detachable wider layers
             if i >= self.eval_idx + 1 and self.layer_scale > 1:
                 query_pos_embed = F.interpolate(query_pos_embed, scale_factor=self.layer_scale)
                 value = self.value_op(memory, None, query_pos_embed.shape[-1], memory_mask, spatial_shapes)
@@ -471,13 +489,15 @@ class TransformerDecoder(nn.Module):
             output = layer(output, ref_points_input, value, spatial_shapes, attn_mask, query_pos_embed)       
             
             if i == 0 :
+                # Initial bounding box predictions with inverse sigmoid refinement
                 pre_bboxes = F.sigmoid(pre_bbox_head(output) + inverse_sigmoid(ref_points_detach))
                 pre_scores = score_head[0](output)
                 ref_points_initial = pre_bboxes.detach()
-
+            
+            # Refine bounding box corners using FDR, integrating previous layer's corrections
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
-
+            
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
                 scores = self.lqe_layers[i](scores, pred_corners)
@@ -612,7 +632,7 @@ class DFINETransformer(nn.Module):
         # init encoder output anchors and valid_mask
         if self.eval_spatial_size:
             self.anchors, self.valid_mask = self._generate_anchors()
-        # self.enc_norm = nn.LayerNorm(hidden_dim)
+
         
         self._reset_parameters()
 
@@ -622,7 +642,7 @@ class DFINETransformer(nn.Module):
             [self.dec_bbox_head[i] if i <= self.eval_idx else nn.Identity() for i in range(len(self.dec_bbox_head))]
         )
 
-    def _reset_parameters(self):
+    def _reset_parameters(self, feat_channels):
         bias = bias_init_with_prob(0.01)
         init.constant_(self.enc_score_head.bias, bias)
         init.constant_(self.enc_bbox_head.layers[-1].weight, 0)
@@ -642,8 +662,9 @@ class DFINETransformer(nn.Module):
             init.xavier_uniform_(self.tgt_embed.weight)
         init.xavier_uniform_(self.query_pos_head.layers[0].weight)
         init.xavier_uniform_(self.query_pos_head.layers[1].weight)
-        # for m in self.input_proj:
-        #     init.xavier_uniform_(m[0].weight)
+        for m, in_channels in zip(self.input_proj, feat_channels):
+            if in_channels != self.hidden_dim:
+                init.xavier_uniform_(m[0].weight)
 
     def _build_input_proj_layer(self, feat_channels):
         self.input_proj = nn.ModuleList()

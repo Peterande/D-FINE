@@ -24,11 +24,7 @@ def main(args, ):
             state = checkpoint['model']
 
         # NOTE load train mode state -> convert to deploy mode
-        # cfg.model.load_state_dict(state, strict=False)
-        model_dict = cfg.model.state_dict()
-        pretrained_dict = {k: v for k, v in state.items() if k in model_dict and model_dict[k].shape == v.shape}
-        model_dict.update(pretrained_dict)
-        cfg.model.load_state_dict(model_dict, strict=False)
+        cfg.model.load_state_dict(state)
 
     else:
         # raise AttributeError('Only support resume to load model.state_dict by now.')
@@ -89,12 +85,10 @@ if __name__ == '__main__':
     
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default="/home/pengys/code/rtdetrv2_pytorch/weight/b4/ema_0.9997_0.5394.pth", type=str, )
-    parser.add_argument('--output_file', '-o', default='./b4-elan2x.onnx', type=str)
+    parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', default="weight/b4/model.pth", type=str, )
+    parser.add_argument('--output_file', '-o', default='deployment/onnx/model.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
-
     args = parser.parse_args()
-    # scp -i /home/pengys/code/rtdetrv2_pytorch/id_rsa -P 39097 /home/pengys/code/rtdetrv2_pytorch/b4_elanfl6.onnx pengys@122.51.61.156:/home/pengys/code/rtdetrv2/deployment
     main(args)

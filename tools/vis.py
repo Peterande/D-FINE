@@ -96,9 +96,9 @@ def draw_bounding_boxes(image_pil, boxes_first, boxes_last, distributions_first,
         box_last *= scale
 
     # Adjust for cropping
-    box_first[1] -= crop_offset # - 30 000000365208
+    box_first[1] -= crop_offset - 30 # 000000365208
     box_first[3] -= crop_offset
-    box_last[1] -= crop_offset # - 30
+    box_last[1] -= crop_offset - 30
     box_last[3] -= crop_offset
 
     # Clamp box coordinates to the image dimensions
@@ -211,7 +211,7 @@ def draw_bounding_boxes(image_pil, boxes_first, boxes_last, distributions_first,
 
             # Set x-axis ticks to 0, 16, and 32
             ax.set_xticks([0, 16, 32])
-            ax.set_xticklabels(['0', '16', '32'], fontsize=16)
+            ax.set_xticklabels(['0', '16', '32'], fontsize=20)
 
             # Find min and max values for consistent y-axis scaling
             max_value = max(dist_first.max(), dist_last.max()) * 1.1
@@ -219,17 +219,17 @@ def draw_bounding_boxes(image_pil, boxes_first, boxes_last, distributions_first,
 
             # Set y-axis ticks
             ax.set_yticks([min_value, 0, max_value])
-            ax.set_yticklabels([f'{min_value:.2f}', '0', f'{max_value:.2f}'], fontsize=16)
+            ax.set_yticklabels([f'{min_value:.2f}', '0', f'{max_value:.2f}'], fontsize=20)
 
             # Set y-axis limits
             ax.set_ylim(min_value, max_value)
 
-            ax.set_title(title, fontsize=18)  # Adjust title font size
-            ax.tick_params(axis='both', which='major', labelsize=14)  # Adjust tick label font size
+            ax.set_title(title, fontsize=20, pad=10)  # Adjust title font size
+            ax.tick_params(axis='both', which='major', labelsize=16)  # Adjust tick label font size
 
             # Do not add legend in the plot
 
-            fig.tight_layout()
+            fig.tight_layout(pad=1.0)
             canvas.draw()
             buf = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
             buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))

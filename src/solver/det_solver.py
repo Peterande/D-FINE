@@ -36,7 +36,7 @@ class DetSolver(BaseSolver):
             
             if epoch == self.train_dataloader.collate_fn.stop_epoch:
                 self.load_resume_state(str(self.output_dir / 'best.pth'))
-                self.ema.decay = 0.9999
+                self.ema.decay = self.train_dataloader.collate_fn.ema_restart_decay
                 print(f'Refresh EMA at epoch {epoch} with decay {self.ema.decay}')
                 
             train_stats = train_one_epoch(
@@ -92,7 +92,7 @@ class DetSolver(BaseSolver):
 
                 if best_stat['epoch'] == epoch and self.output_dir:
                     if epoch >= self.train_dataloader.collate_fn.stop_epoch:
-                        dist_utils.save_on_master(self.state_dict(), self.output_dir / ('ema_' + str(self.ema.decay) + '_{:.4f}.pth'.format(best_stat[k])))
+                        dist_utils.save_on_master(self.state_dict(), self.output_dir / f"finetune_{self.ema.decay:.4f}_{best_stat[k]:.4f}.pth")
                     else:
                         dist_utils.save_on_master(self.state_dict(), self.output_dir / 'best.pth')
                         

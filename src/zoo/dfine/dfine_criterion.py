@@ -123,7 +123,7 @@ class DFINECriterion(nn.Module):
         return losses
 
     def loss_local(self, outputs, targets, indices, num_boxes, T=5):
-        """Compute the distribution focal loss and the self-distillation loss"""
+        """Compute the distribution focal loss and the GO-LSD loss"""
         losses = {}
         idx = self._get_src_permutation_idx(indices)
         if 'pred_corners' in outputs:
@@ -146,7 +146,7 @@ class DFINECriterion(nn.Module):
             weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
             
             losses['loss_dfl'] = self.unimodal_distribution_focal_loss(
-                pred_corners, target_corners, weight_right, weight_left, weight_targets ** 4, avg_factor=num_boxes)
+                pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
         
         if 'teacher_corners' in outputs:  
             pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))       
@@ -164,7 +164,7 @@ class DFINECriterion(nn.Module):
                 loss_match_local = weight_targets_local * (T ** 2) * (nn.KLDivLoss(reduction='none')
                 (F.log_softmax(pred_corners / T, dim=1), F.softmax(target_corners.detach() / T, dim=1))).sum(-1)
                 if 'is_dn' not in outputs:
-                    self.num_pos, self.num_neg = (mask.sum() / mask.numel()) ** 0.5, ((~mask).sum() / mask.numel()) ** 0.5
+                    self.num_pos, self.num_neg = mask.sum() ** 0.5, (~mask).sum() ** 0.5
                 loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
                 loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
                 losses['loss_local'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
@@ -214,7 +214,7 @@ class DFINECriterion(nn.Module):
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(self, outputs, targets, global_step, epoch_step, **kwargs):
+    def forward(self, outputs, targets, **kwargs):
         """ This performs the loss computation.
         Parameters:
              outputs: dict of tensors, see the output specification of the model for the format
@@ -416,3 +416,9 @@ class DFINECriterion(nn.Module):
             loss = loss.sum()
 
         return loss
+    
+    def get_gradual_steps(self, outputs):
+        num_layers = len(outputs['aux_outputs']) + 1 if 'aux_outputs' in outputs else 1
+        step = .5 / (num_layers - 1)
+        opt_list = [.5  + step * i for i in range(num_layers)] if num_layers > 1 else [1]
+        return opt_list

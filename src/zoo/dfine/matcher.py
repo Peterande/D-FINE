@@ -111,7 +111,7 @@ class HungarianMatcher(nn.Module):
         
         # Compute topk indices
         if return_topk:
-            return {'indices': self.get_top_k_matches(C, sizes=sizes, k=return_topk, initial_indices=indices_pre)}
+            return {'indices_o2m': self.get_top_k_matches(C, sizes=sizes, k=return_topk, initial_indices=indices_pre)}
 
         return {'indices': indices} # , 'indices_o2m': C.min(-1)[1]}
 

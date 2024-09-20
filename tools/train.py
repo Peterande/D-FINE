@@ -10,23 +10,17 @@ import argparse
 from src.misc import dist_utils
 from src.core import YAMLConfig, yaml_utils
 from src.solver import TASKS
-import torch
-# import megengine
 
-
+# import torch
 # def custom_repr(self):
 #     return f'{{Tensor:{tuple(self.shape)}}} {original_repr(self)}'
 # original_repr = torch.Tensor.__repr__
 # torch.Tensor.__repr__ = custom_repr
 
-
-
 def main(args, ) -> None:
     """main
     """
     dist_utils.setup_distributed(args.print_rank, args.print_method, seed=args.seed)
-    
-    # megengine.dtr.enable()
 
     assert not all([args.tuning, args.resume]), \
         'Only support from_scrach or resume or tuning at one time'

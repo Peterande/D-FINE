@@ -52,3 +52,5 @@ train_dataloader:
         epoch: 72
   collate_fn:
     stop_epoch: 72
+    ema_restart_decay: 0.9999
+    num_ori_shape: 3
