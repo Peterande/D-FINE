@@ -634,7 +634,7 @@ class DFINETransformer(nn.Module):
             self.anchors, self.valid_mask = self._generate_anchors()
 
         
-        self._reset_parameters()
+        self._reset_parameters(feat_channels)
 
     def convert_to_deploy(self):
         self.dec_score_head = nn.ModuleList([nn.Identity()] * (self.eval_idx) + [self.dec_score_head[self.eval_idx]])

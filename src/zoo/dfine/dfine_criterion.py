@@ -164,7 +164,8 @@ class DFINECriterion(nn.Module):
                 loss_match_local = weight_targets_local * (T ** 2) * (nn.KLDivLoss(reduction='none')
                 (F.log_softmax(pred_corners / T, dim=1), F.softmax(target_corners.detach() / T, dim=1))).sum(-1)
                 if 'is_dn' not in outputs:
-                    self.num_pos, self.num_neg = mask.sum() ** 0.5, (~mask).sum() ** 0.5
+                    batch_scale = 32 / outputs['pred_boxes'].shape[0]  # Avoid the influence of batch size
+                    self.num_pos, self.num_neg = (mask.sum() * batch_scale) ** 0.5, ((~mask).sum() * batch_scale) ** 0.5
                 loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
                 loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
                 losses['loss_local'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)

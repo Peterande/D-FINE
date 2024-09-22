@@ -3,55 +3,60 @@ __include__: [
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer.yml',
-  './include/dfine_r50vd.yml',
+  './include/dfine_hgnetv2.yml',
 ]
 
 
-output_dir: ./output/dfine_r34vd_120e_coco
+output_dir: ./output/dfine_hgnetv2_m_coco
 
 
-PResNet:
-  depth: 34
+DFINE:
+  backbone: HGNetv2
+
+
+HGNetv2:
+  name: 'B2'
+  return_idx: [1, 2, 3]
   freeze_at: -1
   freeze_norm: False
-  pretrained: True
+  use_lab: True
 
+DFINETransformer:
+  num_layers: 4
+  eval_idx: -1
 
 HybridEncoder:
-  in_channels: [128, 256, 512]
+  in_channels: [384, 768, 1536]
   hidden_dim: 256
-  expansion: 0.5
-
-
-RTDETRTransformerv2:
-  num_layers: 4
-
-
-epoches: 120
+  depth_mult: 0.67
 
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.00005
+      lr: 0.00002
     - 
       params: '^(?=.*backbone)(?=.*norm|bn).*$'
-      lr: 0.00005
+      lr: 0.00002
       weight_decay: 0.
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
       weight_decay: 0.
 
-  lr: 0.0001
+  lr: 0.0002
   betas: [0.9, 0.999]
   weight_decay: 0.0001
 
+epoches: 130
+
+DFINECriterion:
+  end_epoch: 120
 
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 117
+        epoch: 120
   collate_fn:
-    stop_epoch: 117
+    stop_epoch: 120

@@ -3,52 +3,34 @@ __include__: [
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer.yml',
-  './include/dfine_r50vd.yml',
+  './include/dfine_hgnetv2.yml',
 ]
 
 
-output_dir: ./output/dfine_hgnetv2_b6_6x_coco
-
-
-DFINE:
-  backbone: HGNetv2
-
+output_dir: ./output/dfine_hgnetv2_l_coco
 
 HGNetv2:
-  name: 'B6'
+  name: 'B4'
   return_idx: [1, 2, 3]
   freeze_stem_only: True
   freeze_at: 0
   freeze_norm: True
-
-
-HybridEncoder:
-  # intra
-  hidden_dim: 448
-  dim_feedforward: 2048
-  num_encoder_layers: 2
-
-DFINETransformer:
-  feat_channels: [448, 448, 448]
-  num_layers: 6
-  eval_idx: -1
-  hidden_dim: 448
-
+  
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.000002
+      lr: 0.00001
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
       weight_decay: 0.
 
-  lr: 0.0002
+  lr: 0.00025
   betas: [0.9, 0.999]
   weight_decay: 0.0001
 
-epoches: 71
+epoches: 100
 
 train_dataloader: 
   dataset: 
@@ -57,3 +39,5 @@ train_dataloader:
         epoch: 72
   collate_fn:
     stop_epoch: 72
+    ema_restart_decay: 0.9999
+    scale_ori_repeat: 3

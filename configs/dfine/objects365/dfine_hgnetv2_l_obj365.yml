@@ -3,10 +3,10 @@ __include__: [
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer_obj365.yml',
-  './include/dfine_r50vd.yml',
+  './include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ./output/dfine_hgnetv2_b4_3x_obj365
+output_dir: ./output/dfine_hgnetv2_x_obj365
 
 
 DFINE:

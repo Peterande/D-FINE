@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from timm.models.layers import DropPath, create_conv2d
 import torch.nn.init as init 
 from .common import FrozenBatchNorm2d
 from ...core import register
@@ -43,14 +42,28 @@ class ConvBNAct(nn.Module):
         super().__init__()
         self.use_act = use_act
         self.use_lab = use_lab
-        self.conv = create_conv2d(
-            in_chs,
-            out_chs,
-            kernel_size,
-            stride=stride,
-            padding=padding,
-            groups=groups,
-        )
+        if padding == 'same':
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d([0, 1, 0, 1]),
+                nn.Conv2d(
+                    in_chs,
+                    out_chs,
+                    kernel_size,
+                    stride,
+                    groups=groups,
+                    bias=False
+                )
+            )
+        else:
+            self.conv = nn.Conv2d(
+                in_chs,
+                out_chs,
+                kernel_size,
+                stride,
+                padding=(kernel_size - 1) // 2,
+                groups=groups,
+                bias=False
+            )
         self.bn = nn.BatchNorm2d(out_chs)
         if self.use_act:
             self.act = nn.ReLU()
@@ -249,7 +262,7 @@ class HG_Block(nn.Module):
                 att,
             )
 
-        self.drop_path = DropPath(drop_path) if drop_path else nn.Identity()
+        self.drop_path = nn.Dropout(drop_path) if drop_path else nn.Identity()
 
     def forward(self, x):
         identity = x
