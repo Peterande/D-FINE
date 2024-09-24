@@ -23,7 +23,7 @@ pip install -r requirements.txt
 
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
-- `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT>=8.5.1$.
+- `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0 (>=8.5.1)$.
 - `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
 
 
