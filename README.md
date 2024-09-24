@@ -24,7 +24,7 @@ pip install -r requirements.txt
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0 (>=8.5.1)$.
-- `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
+<!-- - `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`. -->
 
 
 ## Usage
@@ -50,20 +50,29 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tool
 ```
 
 <!-- <summary>4. Export onnx </summary> -->
-4. Export onnx
+4. Export onnx and tensorrt
 ```shell
 python tools/export_onnx.py -c path/to/config -r path/to/checkpoint --check
+trtexec --onnx=".model.onnx" --saveEngine="./model.engine" --fp16
 ```
 
 <!-- <summary>5. Inference </summary> -->
 5. Inference
 
-Support torch, onnxruntime, tensorrt and openvino, see details in *references/deploy*
+Support torch, onnxruntime, tensorrt and openvino, see details in *benchmark/inference*
 ```shell
-python references/deploy/dfine_onnx.py --onnx-file=model.onnx --im-file=xxxx
-python references/deploy/dfine_tensorrt.py --trt-file=model.trt --im-file=xxxx
-python references/deploy/dfine_torch.py -c path/to/config -r path/to/checkpoint --im-file=xxxx --device=cuda:0
+python benchmark/inference/onnx_inf.py --onnx-file=model.onnx --im-file=xxxx
+python benchmark/inference/trt_inf.py --trt-file=model.trt --im-file=xxxx
+python benchmark/inference/torch_inf.py -c path/to/config -r path/to/checkpoint --im-file=xxxx --device=cuda:0
 ```
+
+<!-- <summary>6. Benchmark </summary> -->
+5. Benchmark (Params. / GFLOPs / Latency)
+```shell
+python benchmark/get_info.py -c path/to/config
+python benchmark/TRT/trt_benchmark_.py --COCO_dir path/to/COCO --engine_dir path/to/engine
+```
+
 </details>
 
 
