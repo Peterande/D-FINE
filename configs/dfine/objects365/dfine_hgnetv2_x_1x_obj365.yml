@@ -1,13 +1,12 @@
 __include__: [
-  '../dataset/coco_detection.yml',
-  '../runtime.yml',
-  './include/dataloader.yml',
-  './include/optimizer.yml',
-  './include/dfine_hgnetv2.yml',
+  '../../dataset/obj365_detection.yml',
+  '../../runtime.yml',
+  '../include/dataloader.yml',
+  '../include/optimizer_obj365.yml',
+  '../include/dfine_hgnetv2.yml',
 ]
 
-
-output_dir: ./output/dfine_hgnetv2_x_coco
+output_dir: ../../../output/dfine_hgnetv2_x_obj365
 
 
 DFINE:
@@ -28,34 +27,31 @@ HybridEncoder:
 
 DFINETransformer:
   feat_channels: [384, 384, 384]
-  num_layers: 6
-  eval_idx: -1
-
+ 
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.0000025
+      lr: 0.000005
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
       weight_decay: 0.
 
-  lr: 0.00025
+  lr: 0.0005
   betas: [0.9, 0.999]
   weight_decay: 0.000125
 
-epoches: 100
+epoches: 36
 
 DFINECriterion:
-  end_epoch: 72
+  end_epoch: 36
 
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 72
+        epoch: 500
   collate_fn:
-    stop_epoch: 72
-    ema_restart_decay: 0.9999
+    stop_epoch: 500
     scale_ori_repeat: 3

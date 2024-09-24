@@ -1,14 +1,7 @@
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
-import torch 
 import torch.nn as nn 
-import torch.nn.functional as F 
-
-import random 
-import numpy as np 
-from typing import List 
-
 from ...core import register
 
 

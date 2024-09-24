@@ -15,10 +15,10 @@ pip install -r requirements.txt
 
 | Model | Dataset | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | GFLOPs | config | Stage 1 | Stage 2 |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-**D-FINE-S** | COCO | **48.5** | **65.5** | 10 | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_b4_6x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
-**D-FINE-M** | COCO | **52.3** | **69.8** | 19 | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_b4_6x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
-**D-FINE-L** | COCO | **53.9** | **71.6** | 31 | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_b4_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
-**D-FINE-X** | COCO | **55.8** | **73.7** | 62 | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_b5_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
+**D-FINE-S** | COCO | **48.5** | **65.5** | 10 | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
+**D-FINE-M** | COCO | **52.3** | **69.8** | 19 | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
+**D-FINE-L** | COCO | **53.9** | **71.6** | 31 | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
+**D-FINE-X** | COCO | **55.8** | **73.7** | 62 | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
 
 
 **Notes:**
@@ -34,7 +34,7 @@ pip install -r requirements.txt
 <!-- <summary>1. Training </summary> -->
 1. Training
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config --use-amp --seed=0 &> log.txt 2>&1 &
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config --use-amp --seed=0
 ```
 
 <!-- <summary>2. Testing </summary> -->
@@ -46,7 +46,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tool
 <!-- <summary>3. Tuning </summary> -->
 3. Tuning
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config -t path/to/checkpoint --use-amp --seed=0 &> log.txt 2>&1 &
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config -t path/to/checkpoint --use-amp --seed=0
 ```
 
 <!-- <summary>4. Export onnx </summary> -->
@@ -62,14 +62,14 @@ Support torch, onnxruntime, tensorrt and openvino, see details in *references/de
 ```shell
 python references/deploy/dfine_onnx.py --onnx-file=model.onnx --im-file=xxxx
 python references/deploy/dfine_tensorrt.py --trt-file=model.trt --im-file=xxxx
-python references/deploy/dfine_torch.py -c path/to/config -r path/to/checkpoint --im-file=xxx --device=cuda:0
+python references/deploy/dfine_torch.py -c path/to/config -r path/to/checkpoint --im-file=xxxx --device=cuda:0
 ```
 </details>
 
 
 
 ## Citation
-If you use `DFINE` or `DFINEv2` in your work, please use the following BibTeX entries:
+If you use `DFINE` in your work, please use the following BibTeX entries:
 
 <details>
 <summary> bibtex </summary>

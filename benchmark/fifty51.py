@@ -1,3 +1,6 @@
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import os
 import subprocess
 
@@ -295,10 +298,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', type=str, default= \
-                        "/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b4_6x_coco.yml")
-    parser.add_argument('--resume', '-r', type=str, default= \
-                        "/home/pengys/code/rtdetrv2_pytorch/weight/b4/ema_0.9997_0.5394.pth")
+    parser.add_argument('--config', '-c', type=str, default= "configs/dfine/dfine_hgnetv2_l_6x_coco.yml")
+    parser.add_argument('--resume', '-r', type=str, default= "weight/l/best.pth")
     args = parser.parse_args()
 
     main(args)

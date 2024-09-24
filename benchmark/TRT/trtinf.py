@@ -1,3 +1,6 @@
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import tensorrt as trt
 import pycuda.driver as cuda
 from utils import TimeProfiler
@@ -6,7 +9,6 @@ import os
 import time
 import torch
 
-import cv2
 from collections import namedtuple, OrderedDict
 from collections import namedtuple
 import glob
@@ -17,20 +19,12 @@ from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Argument Parser Example')
-    parser.add_argument('--infer_dir', 
+    parser.add_argument('--COCO_dir', 
                         type=str, 
-                        default='/data/pengys/val2017',
+                        default='/data/COCO2017/val2017',
                         help="Directory for images to perform inference on.")
-    parser.add_argument("--infer_img", 
-                        type=str, 
-                        help="Directory for images to perform inference on.")
-    parser.add_argument("--output_dir",
+    parser.add_argument("--engine_dir",
                         type=str,
-                        default="./output",
-                        help="Directory for storing the output visualization files.")
-    parser.add_argument("--models_dir",
-                        type=str,
-                        default='deployment/engines/',
                         help="Directory containing model engine files.")
     args = parser.parse_args()
     return args 
@@ -148,18 +142,22 @@ class TRTInference(object):
             _ = self(blob)
 
     def speed(self, blob, n):
-        self.time_profile.reset()
+        times = []
         self.time_profile_dataset.reset()
         for i in tqdm(range(n), desc="Running Inference", unit="iteration"):
+            self.time_profile.reset()
             with self.time_profile_dataset:
                 img = blob[i]
                 if img['images'] is not None:
-                    img['image'] = img['images']
+                    img['images'] = img['images'] = img['input'] = img['images'].unsqueeze(0)
                 else:
-                    img['images'] = img['image']
+                    img['images'] = img['images'] = img['input'] = img['images'].unsqueeze(0)
             with self.time_profile:
                 _ = self(img)
-        return self.time_profile.total / n 
+            times.append(self.time_profile.total) 
+
+        avg_time = sum(times) / len(times)  # Calculate the average of the remaining times
+        return avg_time
 
 def main():
     FLAGS = parse_args()  
@@ -168,6 +166,7 @@ def main():
     blob = {
             'image': im, 
             'images': im, 
+            'input': im, 
             'im_shape': torch.tensor([640, 640]).to(im.device),
             'scale_factor': torch.tensor([1, 1]).to(im.device),
             'orig_target_sizes': torch.tensor([640, 640]).to(im.device),
@@ -188,12 +187,10 @@ def main():
         results.append((engine_file, avg_latency))
         print(f"Engine: {engine_file}, Latency: {avg_latency:.2f} ms")
 
-        # 释放资源
         del model
         torch.cuda.empty_cache()
-        time.sleep(1)  # 等待资源释放
+        time.sleep(1)
 
-    # 输出结果
     sorted_results = sorted(results, key=lambda x: x[1])
     for engine_file, latency in sorted_results:
         print(f"Engine: {engine_file}, Latency: {latency:.2f} ms")

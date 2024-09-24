@@ -1,4 +1,6 @@
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+"""
+Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 import os 
@@ -85,8 +87,8 @@ if __name__ == '__main__':
     
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_b4_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default="weight/b4/model.pth", type=str, )
+    parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_l_6x_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', default="weight/l/best.pth", type=str, )
     parser.add_argument('--output_file', '-o', default='deployment/onnx/model.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)

@@ -1,3 +1,6 @@
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import math 
 import copy 
 import functools

@@ -1,4 +1,4 @@
-"""by lyuwenyu
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 import os 
@@ -6,14 +6,13 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 import argparse
-
+from calflops import calculate_flops
 from src.core import YAMLConfig
 
 import torch
 import torch.nn as nn 
 import time
 import tqdm
-from calflops import calculate_flops
 
 
 def custom_repr(self):
@@ -81,14 +80,14 @@ def main(args, ):
     params = sum(p.numel() for p in model2.parameters())
     print("Model FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
     
-    t = measure_average_inference_time(model, data, 1000000)
-    print('Average inference time: ', t)
+    t = measure_average_inference_time(model, data, 1000)
+    print('Average inference time @ pytorch: ', t)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_b2_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', type=str, )
+    parser.add_argument('--config', '-c', default= "configs/dfine/dfine_hgnetv2_l_6x_coco.yml", type=str)
+    parser.add_argument('--resume', '-r', default='weight/l/best.pth', type=str)
     args = parser.parse_args()
 
     main(args)

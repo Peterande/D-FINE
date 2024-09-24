@@ -1,4 +1,4 @@
-"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 import os 
@@ -11,11 +11,14 @@ from src.misc import dist_utils
 from src.core import YAMLConfig, yaml_utils
 from src.solver import TASKS
 
-# import torch
-# def custom_repr(self):
-#     return f'{{Tensor:{tuple(self.shape)}}} {original_repr(self)}'
-# original_repr = torch.Tensor.__repr__
-# torch.Tensor.__repr__ = custom_repr
+debug=False
+
+if debug:
+    import torch
+    def custom_repr(self):
+        return f'{{Tensor:{tuple(self.shape)}}} {original_repr(self)}'
+    original_repr = torch.Tensor.__repr__
+    torch.Tensor.__repr__ = custom_repr
 
 def main(args, ) -> None:
     """main

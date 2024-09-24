@@ -19,11 +19,11 @@ train_dataloader:
   
   collate_fn:
     type: BatchImageCollateFuncion
-    scales: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+    scales: [480, 512, 544, 576, 608, 672, 704, 736, 768, 800]
     stop_epoch: 72 # epoch in [71, ~) stop `multiscales`
 
   shuffle: True
-  total_batch_size: 32 # total batch size equals to 16 (4 * 4)
+  total_batch_size: 64 # total batch size equals to 16 (4 * 4)
   num_workers: 4
 
 
@@ -34,5 +34,5 @@ val_dataloader:
         - {type: Resize, size: [640, 640]}
         - {type: ConvertPILImage, dtype: 'float32', scale: True}   
   shuffle: False
-  total_batch_size: 64
+  total_batch_size: 128
   num_workers: 4

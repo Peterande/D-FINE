@@ -1,9 +1,13 @@
+"""Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init 
 from .common import FrozenBatchNorm2d
 from ...core import register
+from fairscale.nn.checkpoint import checkpoint_wrapper
 
 # Constants for initialization
 kaiming_normal_ = nn.init.kaiming_normal_
@@ -437,11 +441,11 @@ class HGNetv2(nn.Module):
         self._out_channels = [stage_config[k][2] for k in stage_config]
 
         # stem
-        self.stem = StemBlock(
+        self.stem = checkpoint_wrapper(StemBlock(
                 in_chs=stem_channels[0],
                 mid_chs=stem_channels[1],
                 out_chs=stem_channels[2],
-                use_lab=use_lab)
+                use_lab=use_lab))
 
 
         # stages
@@ -450,7 +454,16 @@ class HGNetv2(nn.Module):
             in_channels, mid_channels, out_channels, block_num, downsample, light_block, kernel_size, layer_num = stage_config[
                 k]
             self.stages.append(
-                HG_Stage(
+                checkpoint_wrapper(HG_Stage(
+                    in_channels,
+                    mid_channels,
+                    out_channels,
+                    block_num,
+                    layer_num,
+                    downsample,
+                    light_block,
+                    kernel_size,
+                    use_lab)) if False else HG_Stage(
                     in_channels,
                     mid_channels,
                     out_channels,

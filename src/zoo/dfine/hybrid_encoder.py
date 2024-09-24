@@ -1,3 +1,8 @@
+"""
+Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import copy
 from collections import OrderedDict
 
@@ -8,8 +13,6 @@ import torch.nn.functional as F
 from .utils import get_activation
 
 from ...core import register
-from .dbb import DiverseBranchBlock as DBBlock
-from .acb import ACBlock
 
 __all__ = ['HybridEncoder']
 
@@ -352,9 +355,7 @@ class HybridEncoder(nn.Module):
         for _ in range(len(in_channels) - 1, 0, -1):
             self.lateral_convs.append(ConvNormLayer_fuse(hidden_dim, hidden_dim, 1, 1))
             self.fpn_blocks.append(
-                # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # ELAN(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult), bottletype=VGGBlock)
                 # CSPLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion, bottletype=VGGBlock)
             )
 
@@ -363,14 +364,11 @@ class HybridEncoder(nn.Module):
         self.pan_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(nn.Sequential(
-                # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
                 SCDown(hidden_dim, hidden_dim, 3, 2),
                 )
             )
             self.pan_blocks.append(
-                # RepNCSPELAN4f(hidden_dim * 2, hidden_dim, round(expansion * hidden_dim // 2), round(3 * depth_mult))
                 RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult))
-                # ELAN(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2), round(3 * depth_mult), bottletype=VGGBlock)
                 # CSPLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion, bottletype=VGGBlock)
             )
 

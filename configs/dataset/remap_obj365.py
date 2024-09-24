@@ -1,13 +1,16 @@
+"""Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import json
 import os
 
 # Paths to the original dataset files
-original_train_ann_file = '/data/pengys/Objects365/data/train/zhiyuan_objv2_train.json'
-original_val_ann_file = '/data/pengys/Objects365/data/val/zhiyuan_objv2_val.json'
+original_train_ann_file = '/data/Objects365/data/train/zhiyuan_objv2_train.json'
+original_val_ann_file = '/data/Objects365/data/val/zhiyuan_objv2_val.json'
 
 # Paths for the new dataset files
-new_val_ann_file = '/data/pengys/Objects365/data/val/new_zhiyuan_objv2_val.json'
-new_train_ann_file = '/data/pengys/Objects365/data/train/new_zhiyuan_objv2_train.json'
+new_val_ann_file = '/data/Objects365/data/val/new_zhiyuan_objv2_val.json'
+new_train_ann_file = '/data/Objects365/data/train/new_zhiyuan_objv2_train.json'
 
 # Load the original training and validation annotations
 with open(original_train_ann_file, 'r') as f:

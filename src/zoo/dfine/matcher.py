@@ -2,7 +2,7 @@
 Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 Modules to compute the matching cost and solve the corresponding LSAP.
 
-Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+Copyright (c) 2024 The D-FINE Authors All Rights Reserved.
 """
 
 import torch
