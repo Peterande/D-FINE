@@ -8,6 +8,7 @@ import torch.nn.init as init
 from .common import FrozenBatchNorm2d
 from ...core import register
 from fairscale.nn.checkpoint import checkpoint_wrapper
+import logging
 
 # Constants for initialization
 kaiming_normal_ = nn.init.kaiming_normal_
@@ -429,7 +430,8 @@ class HGNetv2(nn.Module):
                  freeze_stem_only=True,
                  freeze_at=0,
                  freeze_norm=True,
-                 pretrained=True):
+                 pretrained=True,
+                 prefix='weight/hgnetv2/PPHGNetV2_'):
         super().__init__()
         self.use_lab = use_lab
         self.return_idx = return_idx
@@ -484,10 +486,19 @@ class HGNetv2(nn.Module):
             self._freeze_norm(self)
 
         if pretrained:
-            prefix = 'weight/hgnetv2/PPHGNetV2_'  
-            state = torch.load(prefix + name + '_ssld_stage1_pretrained.pth')
-            self.load_state_dict(state, strict=False)
-            print("Loaded stage1 " + name + " HGNetV2")
+            try:
+                state = torch.load(prefix + name + '_ssld_stage1_pretrained.pth')
+                self.load_state_dict(state, strict=False)
+                print("Loaded stage1 " + name + " HGNetV2")
+            except Exception as e:
+                def wait_for_confirmation():
+                    confirmation = input("Press Enter to continue or input 'y' to confirm: ").strip().lower()
+                    if confirmation != '' and confirmation != 'y':
+                        print("Exiting the program. Please confirm the pretrain model path.")
+                        exit()
+                logging.error(f"{str(e)}")
+                logging.warning(f"Skip Loading Pretrain HGNetv2. Are You in 'Training' mode?")
+                wait_for_confirmation()
 
     def _freeze_norm(self, m: nn.Module):
         if isinstance(m, nn.BatchNorm2d):

@@ -23,7 +23,7 @@ pip install -r requirements.txt
 
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
-- `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0 (>=8.5.1)$.
+- `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
 <!-- - `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`. -->
 
 
@@ -69,6 +69,7 @@ python benchmark/inference/torch_inf.py -c path/to/config -r path/to/checkpoint 
 <!-- <summary>6. Benchmark </summary> -->
 5. Benchmark (Params. / GFLOPs / Latency)
 ```shell
+pip install -r benchmark/requirements.txt
 python benchmark/get_info.py -c path/to/config
 python benchmark/TRT/trt_benchmark_.py --COCO_dir path/to/COCO --engine_dir path/to/engine
 ```
