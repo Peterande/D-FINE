@@ -7,7 +7,7 @@ __include__: [
 ]
 
 
-output_dir: ../../output/dfine_hgnetv2_l_coco
+output_dir: ../../output/dfine_hgnetv2_l_6x_coco
 
 HGNetv2:
   name: 'B4'
@@ -40,4 +40,4 @@ train_dataloader:
   collate_fn:
     stop_epoch: 72
     ema_restart_decay: 0.9999
-    scale_ori_repeat: 6
+    scale_ori_repeat: 4

@@ -443,12 +443,16 @@ class HGNetv2(nn.Module):
         self._out_channels = [stage_config[k][2] for k in stage_config]
 
         # stem
-        self.stem = checkpoint_wrapper(StemBlock(
+        # self.stem = checkpoint_wrapper(StemBlock(
+        #         in_chs=stem_channels[0],
+        #         mid_chs=stem_channels[1],
+        #         out_chs=stem_channels[2],
+        #         use_lab=use_lab))
+        self.stem = StemBlock(
                 in_chs=stem_channels[0],
                 mid_chs=stem_channels[1],
                 out_chs=stem_channels[2],
-                use_lab=use_lab))
-
+                use_lab=use_lab)
 
         # stages
         self.stages = nn.ModuleList()
@@ -456,16 +460,7 @@ class HGNetv2(nn.Module):
             in_channels, mid_channels, out_channels, block_num, downsample, light_block, kernel_size, layer_num = stage_config[
                 k]
             self.stages.append(
-                checkpoint_wrapper(HG_Stage(
-                    in_channels,
-                    mid_channels,
-                    out_channels,
-                    block_num,
-                    layer_num,
-                    downsample,
-                    light_block,
-                    kernel_size,
-                    use_lab)) if False else HG_Stage(
+                HG_Stage(
                     in_channels,
                     mid_channels,
                     out_channels,

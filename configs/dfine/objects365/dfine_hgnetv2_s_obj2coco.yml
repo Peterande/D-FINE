@@ -1,12 +1,13 @@
 __include__: [
-  '../../dataset/obj365_detection.yml',
+  '../../dataset/coco_detection.yml',
   '../../runtime.yml',
   '../include/dataloader.yml',
-  '../include/optimizer_obj365.yml',
+  '../include/optimizer.yml',
   '../include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ../../../output/dfine_hgnetv2_s_3x_obj365
+
+output_dir: ../../../output/dfine_hgnetv2_s_2x_obj2coco
 
 
 DFINE:
@@ -29,41 +30,46 @@ HybridEncoder:
   hidden_dim: 256
   depth_mult: 0.34
   expansion: 0.5
-  
+
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.0002
+      lr: 0.0001
     - 
       params: '^(?=.*backbone)(?=.*norm|bn).*$'
-      lr: 0.0002
+      lr: 0.0001
       weight_decay: 0.
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
       weight_decay: 0.
 
-  lr: 0.0004
+  lr: 0.0002
   betas: [0.9, 0.999]
-  weight_decay: 0.00005
+  weight_decay: 0.0001
 
-epoches: 72
+
+epoches: 50
 
 DFINECriterion:
-  end_epoch: 72
+  end_epoch: 36
 
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 500
+        epoch: 36
   collate_fn:
-    stop_epoch: 500
+    stop_epoch: 36
+    ema_restart_decay: 0.9999
     scale_ori_repeat: 10
 
 ema:
-  decay: 0.9998
+  warmups: 0
 
 DFINECriterion:
   weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.1, loss_local: 1.0}
+  
+lr_warmup_scheduler:
+  warmup_duration: 0

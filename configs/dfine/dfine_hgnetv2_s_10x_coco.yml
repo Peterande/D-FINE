@@ -7,7 +7,7 @@ __include__: [
 ]
 
 
-output_dir: ../../output/dfine_hgnetv2_s_coco
+output_dir: ../../output/dfine_hgnetv2_s_10x_coco
 
 
 DFINE:

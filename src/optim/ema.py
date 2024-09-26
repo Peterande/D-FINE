@@ -1,4 +1,5 @@
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 
@@ -37,7 +38,10 @@ class ModelEMA(object):
         self.before_start = 0
         self.start = start
         self.updates = 0  # number of EMA updates
-        self.decay_fn = lambda x: decay * (1 - math.exp(-x / warmups))  # decay exponential ramp (to help early epochs)
+        if warmups == 0:
+            self.decay_fn = lambda x: decay
+        else:
+            self.decay_fn = lambda x: decay * (1 - math.exp(-x / warmups))  # decay exponential ramp (to help early epochs)
         
         for p in self.module.parameters():
             p.requires_grad_(False)

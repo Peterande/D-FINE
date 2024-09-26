@@ -38,3 +38,4 @@ code/
 *.png
 *.ttf
 vis.py
+start.sh
