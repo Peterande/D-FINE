@@ -1,3 +1,17 @@
+<!-- ## 🚀 Updates
+- \[2024.10.7\] Release D-FINE series. -->
+
+
+This is the official implementation of papers 
+- [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
+
+<summary>Fig</summary>
+
+<table><tr>
+<td><img src=https://github.com/lyuwenyu/RT-DETR/assets/77494834/0ede1dc1-a854-43b6-9986-cf9090f11a61 border=0 width=333></td>
+<td><img src=https://github.com/user-attachments/assets/437877e9-1d4f-4d30-85e8-aafacfa0ec56 border=0 width=333></td>
+<td><img src=https://github.com/user-attachments/assets/437877e9-1d4f-4d30-85e8-aafacfa0ec56 border=0 width=333></td>
+</tr></table>
 
 ## Quick start
 
@@ -29,35 +43,86 @@ pip install -r requirements.txt
 
 ## Usage
 <details>
-<summary> details </summary>
+<summary> Details </summary>
 
 <!-- <summary>1. Training </summary> -->
 1. Training
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config --use-amp --seed=0
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/xxx_coco --use-amp --seed=0
 ```
 
 <!-- <summary>2. Testing </summary> -->
 2. Testing
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config -r path/to/checkpoint --test-only
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/xxx_coco -r path/to/checkpoint --test-only
 ```
 
 <!-- <summary>3. Tuning </summary> -->
 3. Tuning
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=9909 --nproc_per_node=4 tools/train.py -c path/to/config -t path/to/checkpoint --use-amp --seed=0
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/xxx_coco -t path/to/checkpoint --use-amp --seed=0
+```
+</details>
+
+<details>
+<summary> Objects365 Prepare </summary>
+1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365/cli/main).
+After decompressing the dataset, make sure to copy the contents of val/v1 and val/v2 into train/images_from_val to prepare for the next step.
+
+/data/username/Objects365/data/train
+├── images_from_val
+├── images
+│   ├── v1
+│   │   ├── patch0
+│   │   │   ├── 000000000.jpg
+│   ├── v2
+│   │   ├── patchx
+│   │   │   ├── 000000000.jpg
+├── /data/Objects365/data/train/zhiyuan_objv2_train.json
+
+/data/username/Objects365/data/val
+├── images
+│   ├── v1
+│   │   ├── patch0
+│   │   │   ├── 000000000.jpg
+│   ├── v2
+│   │   ├── patchx
+│   │   │   ├── 000000000.jpg
+├── /data/Objects365/data/val/zhiyuan_objv2_val.json
+
+2. Once all the files are decompressed and organized, run the remap_obj365.py script. This script will merge samples with indices between 5000 and 800000 from the validation set into the training set.
+```shell
+python configs/dataset/remap_obj365.py
 ```
 
+
+3. Next, run the resize_obj365.py script to resize the dataset images that have a maximum edge length greater than 640 pixels. Make sure to use the updated JSON file created in Step 2 to read the sample data. Resize the samples in both the train and val datasets to ensure consistency.
+```shell
+python configs/dataset/resize_obj365.py
+```
+
+4. Training on Objects365
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node=8 tools/train.py -c configs/dfine/objects365/xxx_obj365 --use-amp --seed=0
+```
+
+5. Turning on COCO
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node=8 tools/train.py -c configs/dfine/objects365/xxx_obj2coco --use-amp --seed=0 -t path/to/checkpoint
+```
+</details>
+
+<details>
+<summary> Deployment and Benchmark </summary>
 <!-- <summary>4. Export onnx </summary> -->
-4. Export onnx and tensorrt
+1. Export onnx and tensorrt
 ```shell
 python tools/export_onnx.py -c path/to/config -r path/to/checkpoint --check
 trtexec --onnx=".model.onnx" --saveEngine="./model.engine" --fp16
 ```
 
 <!-- <summary>5. Inference </summary> -->
-5. Inference
+2. Inference
 
 Support torch, onnxruntime, tensorrt and openvino, see details in *benchmark/inference*
 ```shell
@@ -67,7 +132,7 @@ python benchmark/inference/torch_inf.py -c path/to/config -r path/to/checkpoint 
 ```
 
 <!-- <summary>6. Benchmark </summary> -->
-5. Benchmark (Params. / GFLOPs / Latency)
+3. Benchmark (Params. / GFLOPs / Latency)
 ```shell
 pip install -r benchmark/requirements.txt
 python benchmark/get_info.py -c path/to/config
