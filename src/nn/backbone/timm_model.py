@@ -1,3 +1,7 @@
+"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+
+https://towardsdatascience.com/getting-started-with-pytorch-image-models-timm-a-practitioners-guide-4e77b4bf9055#0583
+"""
 import torch
 from torchvision.models.feature_extraction import get_graph_node_names, create_feature_extractor
 

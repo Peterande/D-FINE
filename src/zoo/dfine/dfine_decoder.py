@@ -370,7 +370,7 @@ class TransformerDecoderLayer(nn.Module):
         # ffn
         target2 = self.forward_ffn(target)
         target = target + self.dropout4(target2)
-        target = self.norm3(target)
+        target = self.norm3(target.clamp(min=-65504, max=65504))
 
         return target
     
@@ -503,7 +503,8 @@ class TransformerDecoder(nn.Module):
             
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
-                scores = self.lqe_layers[i](scores, pred_corners)
+                # Lqe does not affect the performance here.
+                scores = self.lqe_layers[i](scores, pred_corners) 
                 dec_out_logits.append(scores)
                 dec_out_bboxes.append(inter_ref_bbox)
                 dec_out_pred_corners.append(pred_corners)

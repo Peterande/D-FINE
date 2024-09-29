@@ -58,4 +58,4 @@ train_dataloader:
   collate_fn:
     stop_epoch: 72
     ema_restart_decay: 0.9999
-    scale_ori_repeat: 3
+    scale_ori_repeat: 4

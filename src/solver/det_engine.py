@@ -10,7 +10,6 @@ from typing import Iterable
 
 import torch
 import torch.amp 
-import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp.grad_scaler import GradScaler
 
@@ -36,75 +35,66 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     lr_warmup_scheduler :Warmup = kwargs.get('lr_warmup_scheduler', None)
 
     for i, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
-        try:
-            samples = samples.to(device)
-            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-            global_step = epoch * len(data_loader) + i
-            metas = dict(epoch=epoch, step=i, global_step=global_step, epoch_step=len(data_loader))
+        samples = samples.to(device)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        global_step = epoch * len(data_loader) + i
+        metas = dict(epoch=epoch, step=i, global_step=global_step, epoch_step=len(data_loader))
 
-            if scaler is not None:
-                with torch.autocast(device_type=str(device), cache_enabled=True):
-                    outputs = model(samples, targets=targets)
-                
-                with torch.autocast(device_type=str(device), enabled=False):
-                    loss_dict = criterion(outputs, targets, **metas)
-
-                loss = sum(loss_dict.values())
-                scaler.scale(loss).backward()
-                
-                if max_norm > 0:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad()
-
-            else:
+        if scaler is not None:
+            with torch.autocast(device_type=str(device), cache_enabled=True):
                 outputs = model(samples, targets=targets)
-                loss_dict = criterion(outputs, targets, **metas)
-                
-                loss : torch.Tensor = sum(loss_dict.values())
-                optimizer.zero_grad()
-                loss.backward()
-                
-                if max_norm > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-
-                optimizer.step()
             
-            # ema 
-            if ema is not None:
-                ema.update(model)
+            with torch.autocast(device_type=str(device), enabled=False):
+                loss_dict = criterion(outputs, targets, **metas)
 
-            if lr_warmup_scheduler is not None:
-                lr_warmup_scheduler.step()
+            loss = sum(loss_dict.values())
+            scaler.scale(loss).backward()
+            
+            if max_norm > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
-            loss_dict_reduced = dist_utils.reduce_dict(loss_dict)
-            loss_value = sum(loss_dict_reduced.values())
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
 
-            if not math.isfinite(loss_value):
-                print("Loss is {}, stopping training".format(loss_value))
-                print(loss_dict_reduced)
-                sys.exit(1)
+        else:
+            outputs = model(samples, targets=targets)
+            loss_dict = criterion(outputs, targets, **metas)
+            
+            loss : torch.Tensor = sum(loss_dict.values())
+            optimizer.zero_grad()
+            loss.backward()
+            
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
-            metric_logger.update(loss=loss_value, **loss_dict_reduced)
-            metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+            optimizer.step()
+        
+        # ema 
+        if ema is not None:
+            ema.update(model)
 
-            if writer and dist_utils.is_main_process() and global_step % 10 == 0:
-                writer.add_scalar('Loss/total', loss_value.item(), global_step)
-                for j, pg in enumerate(optimizer.param_groups):
-                    writer.add_scalar(f'Lr/pg_{j}', pg['lr'], global_step)
-                for k, v in loss_dict_reduced.items():
-                    writer.add_scalar(f'Loss/{k}', v.item(), global_step)
-        except RuntimeError as e:
-            if 'out of memory' in str(e) and dist.is_initialized():
-                print(f"Rank {dist.get_rank()}: OOM encountered, clearing memory...")
-                torch.cuda.empty_cache()
-                dist.barrier()  
-                continue
-            else:
-                raise      
+        if lr_warmup_scheduler is not None:
+            lr_warmup_scheduler.step()
+
+        loss_dict_reduced = dist_utils.reduce_dict(loss_dict)
+        loss_value = sum(loss_dict_reduced.values())
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
+
+        metric_logger.update(loss=loss_value, **loss_dict_reduced)
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        if writer and dist_utils.is_main_process() and global_step % 10 == 0:
+            writer.add_scalar('Loss/total', loss_value.item(), global_step)
+            for j, pg in enumerate(optimizer.param_groups):
+                writer.add_scalar(f'Lr/pg_{j}', pg['lr'], global_step)
+            for k, v in loss_dict_reduced.items():
+                writer.add_scalar(f'Loss/{k}', v.item(), global_step)
                 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

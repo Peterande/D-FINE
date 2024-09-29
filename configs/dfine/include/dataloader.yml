@@ -34,5 +34,5 @@ val_dataloader:
         - {type: Resize, size: [640, 640]}
         - {type: ConvertPILImage, dtype: 'float32', scale: True}   
   shuffle: False
-  total_batch_size: 128
+  total_batch_size: 64
   num_workers: 4
