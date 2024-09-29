@@ -43,7 +43,7 @@ pip install -r requirements.txt
 
 ## Usage
 <details>
-<summary> Details </summary>
+<summary> COCO </summary>
 
 <!-- <summary>1. Training </summary> -->
 1. Training
@@ -65,10 +65,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools
 </details>
 
 <details>
-<summary> Objects365 Prepare </summary>
+<summary> Objects365 to COCO </summary>
 1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365/cli/main).
 After decompressing the dataset, make sure to copy the contents of val/v1 and val/v2 into train/images_from_val to prepare for the next step.
 
+```shell
 /data/username/Objects365/data/train
 ├── images_from_val
 ├── images
@@ -79,7 +80,9 @@ After decompressing the dataset, make sure to copy the contents of val/v1 and va
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
 ├── /data/Objects365/data/train/zhiyuan_objv2_train.json
+```
 
+```shell
 /data/username/Objects365/data/val
 ├── images
 │   ├── v1
@@ -89,6 +92,7 @@ After decompressing the dataset, make sure to copy the contents of val/v1 and va
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
 ├── /data/Objects365/data/val/zhiyuan_objv2_val.json
+```
 
 2. Once all the files are decompressed and organized, run the remap_obj365.py script. This script will merge samples with indices between 5000 and 800000 from the validation set into the training set.
 ```shell
@@ -114,6 +118,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node
 
 <details>
 <summary> Deployment and Benchmark </summary>
+
 <!-- <summary>4. Export onnx </summary> -->
 1. Export onnx and tensorrt
 ```shell
