@@ -26,20 +26,24 @@ pip install -r requirements.txt
 ## Model Zoo
 
 ### Base models
-
-| Model | Dataset | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | GFLOPs | config | Stage 1 | Stage 2 |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-**D-FINE-S** | COCO | **48.5** | **65.5** | 10 | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
-**D-FINE-M** | COCO | **52.3** | **69.8** | 19 | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
-**D-FINE-L** | COCO | **53.9** | **71.6** | 31 | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
-**D-FINE-X** | COCO | **55.8** | **73.7** | 62 | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
-
+| Model | Dataset | AP<sup>val</sup> | #Params | FPS | GFLOPs | config | Stage 1 | Stage 2 |
+| :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
+**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
+**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
+**D-FINE-L** | COCO | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
+**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
+**D-FINE-S** | COCO+365 | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
+**D-FINE-M** | COCO+365 | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
+**D-FINE-L** | COCO+365 | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
+**D-FINE-X** | COCO+365 | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
 
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
-<!-- - `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`. -->
-
+- `COCO+365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
+- `Stage 1`: AP<sup>val</sup> before tuning off advanced augmentations in the final few epochs (Objects365 AP<sup>val</sup> if dataset is `COCO+365`). \
+These ckpts offering better generalization.
+- `Stage 2`: Best AP<sup>val</sup> after disabling advanced augmentations in the final few epochs. (COCO AP<sup>val</sup> if dataset is `COCO+365`)
 
 ## Usage
 <details>
