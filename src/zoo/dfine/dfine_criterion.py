@@ -170,7 +170,6 @@ class DFINECriterion(nn.Module):
                 loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
                 losses['loss_local'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
         
-        losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}  # For Objects365 pre-train.
         return losses
 
     def _get_src_permutation_idx(self, indices):
@@ -344,7 +343,8 @@ class DFINECriterion(nn.Module):
                     l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f'_dn_pre': v for k, v in l_dict.items()}
                     losses.update(l_dict)   
-                
+                    
+        losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}  # For Objects365 pre-train.        
         return losses
 
     def get_loss_meta_info(self, loss, outputs, targets, indices):

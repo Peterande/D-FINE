@@ -14,6 +14,6 @@ def save_only_ema_weights(checkpoint_file, output_file):
     print(f"EMA weights saved to {output_file}")
 
 if __name__ == '__main__':
-    checkpoint_file = '/home/pengys/code/rtdetrv2_pytorch/tb0902/b0_obj365_fix/17.pth'
-    output_file = '/home/pengys/code/rtdetrv2_pytorch/tb0902/b0_obj365_fix/b0_e17_obj365.pth'
+    checkpoint_file = '/home/pengys/code/rtdetrv2_pytorch/tb0902/b2_obj365_fix/checkpoint0012.pth'
+    output_file = '/home/pengys/code/rtdetrv2_pytorch/tb0902/b2_obj365_fix/b2_e12_obj365.pth'
     save_only_ema_weights(checkpoint_file, output_file)

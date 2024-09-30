@@ -149,9 +149,9 @@ class TRTInference(object):
             with self.time_profile_dataset:
                 img = blob[i]
                 if img['images'] is not None:
-                    img['images'] = img['images'] = img['input'] = img['images'].unsqueeze(0)
+                    img['image'] = img['input'] = img['images'].unsqueeze(0)
                 else:
-                    img['images'] = img['images'] = img['input'] = img['images'].unsqueeze(0)
+                    img['images'] = img['input'] = img['image'].unsqueeze(0)
             with self.time_profile:
                 _ = self(img)
             times.append(self.time_profile.total) 

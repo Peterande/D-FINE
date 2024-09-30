@@ -85,11 +85,21 @@ def main(args, ):
 
 if __name__ == '__main__':
     
+    # import argparse
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_l_6x_coco.yml', type=str, )
+    # parser.add_argument('--resume', '-r', default="weight/l/best.pth", type=str, )
+    # parser.add_argument('--output_file', '-o', default='deployment/onnx/model.onnx', type=str)
+    # parser.add_argument('--check',  action='store_true', default=True,)
+    # parser.add_argument('--simplify',  action='store_true', default=True,)
+    # args = parser.parse_args()
+    # main(args)
+
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_l_6x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default="weight/l/best.pth", type=str, )
-    parser.add_argument('--output_file', '-o', default='deployment/onnx/model.onnx', type=str)
+    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_m_10x_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', default="/home/pengys/code/rtdetrv2_pytorch/weight/dfine_m_coco_stage1.pth", type=str, )
+    parser.add_argument('--output_file', '-o', default='deployment/onnx/m.onnx', type=str)
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
     args = parser.parse_args()

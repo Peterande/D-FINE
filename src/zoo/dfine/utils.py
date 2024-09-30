@@ -1,3 +1,7 @@
+"""Copyright(c) 2023 lyuwenyu. All Rights Reserved.
+Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+"""
+
 import math
 from typing import List
 

@@ -26,24 +26,28 @@ pip install -r requirements.txt
 ## Model Zoo
 
 ### Base models
-
-| Model | Dataset | AP<sup>val</sup> | AP<sub>50</sub><sup>val</sup> | #Params(M) | FPS | GFLOPs | config | Stage 1 | Stage 2 |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-**D-FINE-S** | COCO | **48.5** | **65.5** | 10 | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
-**D-FINE-M** | COCO | **52.3** | **69.8** | 19 | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
-**D-FINE-L** | COCO | **53.9** | **71.6** | 31 | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
-**D-FINE-X** | COCO | **55.8** | **73.7** | 62 | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
-
+| Model | Dataset | AP<sup>val</sup> | #Params | FPS | GFLOPs | config | Stage 1 | Stage 2 |
+| :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
+**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
+**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
+**D-FINE-L** | COCO | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
+**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
+**D-FINE-S** | COCO+365 | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_10x_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
+**D-FINE-M** | COCO+365 | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_10x_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
+**D-FINE-L** | COCO+365 | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_6x_coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
+**D-FINE-X** | COCO+365 | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_6x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
 
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
-<!-- - `COCO + Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`. -->
-
+- `COCO+365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
+- `Stage 1`: AP<sup>val</sup> before tuning off advanced augmentations in the final few epochs (Objects365 AP<sup>val</sup> if dataset is `COCO+365`). \
+These ckpts offering better generalization.
+- `Stage 2`: Best AP<sup>val</sup> after disabling advanced augmentations in the final few epochs. (COCO AP<sup>val</sup> if dataset is `COCO+365`)
 
 ## Usage
 <details>
-<summary> Details </summary>
+<summary> COCO </summary>
 
 <!-- <summary>1. Training </summary> -->
 1. Training
@@ -65,10 +69,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools
 </details>
 
 <details>
-<summary> Objects365 Prepare </summary>
+<summary> Objects365 to COCO </summary>
 1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365/cli/main).
 After decompressing the dataset, make sure to copy the contents of val/v1 and val/v2 into train/images_from_val to prepare for the next step.
 
+```shell
 /data/username/Objects365/data/train
 ├── images_from_val
 ├── images
@@ -79,7 +84,9 @@ After decompressing the dataset, make sure to copy the contents of val/v1 and va
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
 ├── /data/Objects365/data/train/zhiyuan_objv2_train.json
+```
 
+```shell
 /data/username/Objects365/data/val
 ├── images
 │   ├── v1
@@ -89,6 +96,7 @@ After decompressing the dataset, make sure to copy the contents of val/v1 and va
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
 ├── /data/Objects365/data/val/zhiyuan_objv2_val.json
+```
 
 2. Once all the files are decompressed and organized, run the remap_obj365.py script. This script will merge samples with indices between 5000 and 800000 from the validation set into the training set.
 ```shell
@@ -114,6 +122,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node
 
 <details>
 <summary> Deployment and Benchmark </summary>
+
 <!-- <summary>4. Export onnx </summary> -->
 1. Export onnx and tensorrt
 ```shell
