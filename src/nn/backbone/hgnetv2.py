@@ -492,7 +492,7 @@ class HGNetv2(nn.Module):
                         print("Exiting the program. Please confirm the pretrain model path.")
                         exit()
                 logging.error(f"{str(e)}")
-                logging.warning(f"Skip Loading Pretrain HGNetv2. Are You in 'Training' mode?")
+                logging.warning(f"Skip Loading Pretrain HGNetv2. You are not in 'Training' mode?")
                 wait_for_confirmation()
 
     def _freeze_norm(self, m: nn.Module):
