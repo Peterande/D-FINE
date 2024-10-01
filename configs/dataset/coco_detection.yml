@@ -18,8 +18,8 @@ train_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /data/pengys/train2017/
-    ann_file: /data/pengys/annotations/instances_train2017.json
+    img_folder: /data/wupx/COCO2017/train2017/
+    ann_file: /data/wupx/COCO2017/annotations/instances_train2017.json
     return_masks: False
     transforms:
       type: Compose
@@ -35,8 +35,8 @@ val_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /data/pengys/val2017/
-    ann_file: /data/pengys/annotations/instances_val2017.json
+    img_folder: /data/wupx/COCO2017/val2017/
+    ann_file: /data/wupx/COCO2017/annotations/instances_val2017.json
     return_masks: False
     transforms:
       type: Compose

@@ -227,7 +227,7 @@ def main(args):
                 "coco-2017",
                 split="validation",
                 dataset_name="evaluate-detections-tutorial",
-                dataset_dir="/home/pengys/Data/fiftyone"
+                dataset_dir="data/fiftyone"
             )
             
             dataset.persistent = True

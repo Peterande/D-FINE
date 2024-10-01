@@ -9,7 +9,7 @@ import datetime
 
 import torch 
 
-from ..misc import dist_utils, profiler_utils
+from ..misc import dist_utils, stats
 
 from ._solver import BaseSolver
 from .det_engine import train_one_epoch, evaluate
@@ -18,13 +18,12 @@ from .det_engine import train_one_epoch, evaluate
 class DetSolver(BaseSolver):
     
     def fit(self, ):
-        print("Start training")
         self.train()
         args = self.cfg
 
-        n_parameters = sum([p.numel() for p in self.model.parameters() if p.requires_grad])
-        print(f'number of trainable parameters: {n_parameters}')
-
+        n_parameters, model_stats = stats(self.cfg)
+        print(model_stats)
+        print("-"*30 + "Start training" + "-"*30)
         best_stat = {'epoch': -1, }
 
         start_time = time.time()
