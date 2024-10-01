@@ -6,7 +6,7 @@ __include__: [
   '../include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ../../../output/dfine_hgnetv2_l_3x_obj365
+output_dir: ../../../output/dfine_hgnetv2_s_obj365
 
 
 DFINE:
@@ -14,27 +14,40 @@ DFINE:
 
 
 HGNetv2:
-  name: 'B4'
+  name: 'B2'
   return_idx: [1, 2, 3]
-  freeze_stem_only: True
-  freeze_at: 0
-  freeze_norm: True
+  freeze_at: -1
+  freeze_norm: False
+  use_lab: True
+
+DFINETransformer:
+  num_layers: 4
+  eval_idx: -1
+
+HybridEncoder:
+  in_channels: [384, 768, 1536]
+  hidden_dim: 256
+  depth_mult: 0.67
   
 optimizer:
   type: AdamW
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.00002
+      lr: 0.00004
     - 
-      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      params: '^(?=.*backbone)(?=.*norm|bn).*$'
+      lr: 0.00004
+      weight_decay: 0.
+    - 
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
       weight_decay: 0.
 
   lr: 0.0004
   betas: [0.9, 0.999]
   weight_decay: 0.00005
 
-epoches: 36
+epoches: 36 # Early stop
 
 DFINECriterion:
   end_epoch: 36
@@ -46,11 +59,12 @@ train_dataloader:
         epoch: 500
   collate_fn:
     stop_epoch: 500
-    scale_ori_repeat: 3
-
+    scale_ori_repeat: 6
 
 ema:
   decay: 0.9998
 
 DFINECriterion:
   weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.1, loss_local: 1.0}
+
+checkpoint_freq: 1

@@ -6,7 +6,7 @@ __include__: [
   '../include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ../../../output/dfine_hgnetv2_s_3x_obj365
+output_dir: ../../../output/dfine_hgnetv2_s_obj365
 
 
 DFINE:
@@ -48,10 +48,10 @@ optimizer:
   betas: [0.9, 0.999]
   weight_decay: 0.00005
 
-epoches: 72
+epoches: 36 # Early stop
 
 DFINECriterion:
-  end_epoch: 72
+  end_epoch: 36
 
 train_dataloader: 
   dataset: 
@@ -67,3 +67,5 @@ ema:
 
 DFINECriterion:
   weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.1, loss_local: 1.0}
+
+checkpoint_freq: 1

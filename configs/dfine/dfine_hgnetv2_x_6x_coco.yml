@@ -45,7 +45,8 @@ optimizer:
   betas: [0.9, 0.999]
   weight_decay: 0.000125
 
-epoches: 100
+# Increase to search for the optimal ema
+epoches: 80 # 74
 
 DFINECriterion:
   end_epoch: 72
@@ -57,5 +58,5 @@ train_dataloader:
         epoch: 72
   collate_fn:
     stop_epoch: 72
-    ema_restart_decay: 0.9999
+    ema_restart_decay: 0.9998
     scale_ori_repeat: 4

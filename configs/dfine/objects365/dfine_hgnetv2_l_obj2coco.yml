@@ -26,27 +26,27 @@ optimizer:
   params: 
     - 
       params: '^(?=.*backbone)(?!.*norm|bn).*$'
-      lr: 0.00001
+      lr: 0.000005
     - 
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
       weight_decay: 0.
 
-  lr: 0.0002
+  lr: 0.0001
   betas: [0.9, 0.999]
   weight_decay: 0.0001
 
-epoches: 40
+epoches: 50
 
 DFINECriterion:
-  end_epoch: 24
+  end_epoch: 36
 
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 24
+        epoch: 36
   collate_fn:
-    stop_epoch: 24
+    stop_epoch: 36
     ema_restart_decay: 0.9999
     scale_ori_repeat: 3
 
