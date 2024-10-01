@@ -1,5 +1,7 @@
 FROM registry.cn-hangzhou.aliyuncs.com/peterande/dfine:v1
-RUN python3 -m pip install torch>=2.4.1 torchvision
+
+# FULL BUILDING INFO:
+    
 # docker login --username=xxx registry.cn-hangzhou.aliyuncs.com
 # cd [PATH_2_Dockerfile]
 # docker build -t xxx:v1 .

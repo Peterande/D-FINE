@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.init as init 
+import os
 from .common import FrozenBatchNorm2d
 from ...core import register
 import logging
@@ -358,7 +358,8 @@ class HGNetv2(nn.Module):
                 "stage2": [64, 32, 256, 1, True, False, 3, 3],
                 "stage3": [256, 64, 512, 2, True, True, 5, 3],
                 "stage4": [512, 128, 1024, 1, True, True, 5, 3],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B0_ssld_stage1_pretrained.pth'
         },
         'B1': {
             'stem_channels': [3, 24, 32],
@@ -368,7 +369,8 @@ class HGNetv2(nn.Module):
                 "stage2": [64, 48, 256, 1, True, False, 3, 3],
                 "stage3": [256, 96, 512, 2, True, True, 5, 3],
                 "stage4": [512, 192, 1024, 1, True, True, 5, 3],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B1_ssld_stage1_pretrained.pth'
         },
         'B2': {
             'stem_channels': [3, 24, 32],
@@ -378,7 +380,8 @@ class HGNetv2(nn.Module):
                 "stage2": [96, 64, 384, 1, True, False, 3, 4],
                 "stage3": [384, 128, 768, 3, True, True, 5, 4],
                 "stage4": [768, 256, 1536, 1, True, True, 5, 4],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B2_ssld_stage1_pretrained.pth'
         },
         'B3': {
             'stem_channels': [3, 24, 32],
@@ -388,7 +391,8 @@ class HGNetv2(nn.Module):
                 "stage2": [128, 64, 512, 1, True, False, 3, 5],
                 "stage3": [512, 128, 1024, 3, True, True, 5, 5],
                 "stage4": [1024, 256, 2048, 1, True, True, 5, 5],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B3_ssld_stage1_pretrained.pth'
         },
         'B4': {
             'stem_channels': [3, 32, 48],
@@ -398,7 +402,8 @@ class HGNetv2(nn.Module):
                 "stage2": [128, 96, 512, 1, True, False, 3, 6],
                 "stage3": [512, 192, 1024, 3, True, True, 5, 6],
                 "stage4": [1024, 384, 2048, 1, True, True, 5, 6],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B4_ssld_stage1_pretrained.pth'
         },
         'B5': {
             'stem_channels': [3, 32, 64],
@@ -408,7 +413,8 @@ class HGNetv2(nn.Module):
                 "stage2": [128, 128, 512, 2, True, False, 3, 6],
                 "stage3": [512, 256, 1024, 5, True, True, 5, 6],
                 "stage4": [1024, 512, 2048, 2, True, True, 5, 6],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B5_ssld_stage1_pretrained.pth'
         },
         'B6': {
             'stem_channels': [3, 48, 96],
@@ -418,7 +424,8 @@ class HGNetv2(nn.Module):
                 "stage2": [192, 192, 512, 3, True, False, 3, 6],
                 "stage3": [512, 384, 1024, 6, True, True, 5, 6],
                 "stage4": [1024, 768, 2048, 3, True, True, 5, 6],
-            }
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/hgnetv2/PPHGNetV2_B6_ssld_stage1_pretrained.pth'
         },
     }
 
@@ -430,13 +437,14 @@ class HGNetv2(nn.Module):
                  freeze_at=0,
                  freeze_norm=True,
                  pretrained=True,
-                 prefix='weight/hgnetv2/PPHGNetV2_'):
+                 local_model_dir='weight/hgnetv2/'):
         super().__init__()
         self.use_lab = use_lab
         self.return_idx = return_idx
 
         stem_channels = self.arch_configs[name]['stem_channels']
         stage_config = self.arch_configs[name]['stage_config']
+        download_url = self.arch_configs[name]['url']
 
         self._out_strides = [4, 8, 16, 32]
         self._out_channels = [stage_config[k][2] for k in stage_config]
@@ -476,17 +484,36 @@ class HGNetv2(nn.Module):
 
         if pretrained:
             try:
-                state = torch.load(prefix + name + '_ssld_stage1_pretrained.pth')
-                self.load_state_dict(state, strict=False)
-                print("Loaded stage1 " + name + " HGNetV2")
+                model_path = local_model_dir + 'PPHGNetV2_' + name + '_ssld_stage1_pretrained.pth'
+                if os.path.exists(model_path):
+                    state = torch.load(model_path, map_location='cpu')
+                    print(f"Loaded stage1 {name} HGNetV2 from local file.")
+                else:
+                    # If the file doesn't exist locally, download from the URL
+                    state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu', model_dir=local_model_dir)
+                    print(f"Loaded stage1 {name} HGNetV2 from URL.")
+                    
+                self.load_state_dict(state)
+
             except Exception as e:
+                RED = "\033[91m"
+                GREEN = "\033[92m"
+                RESET = "\033[0m" 
                 def wait_for_confirmation():
-                    confirmation = input("Press Enter to continue or input 'y' to confirm: ").strip().lower()
-                    if confirmation != '' and confirmation != 'y':
-                        print("Exiting the program. Please confirm the pretrain model path.")
+                    confirmation = input(GREEN + 
+                    "If you are resuming or tuning and wish to continue without loading the pretrained backbone, input 'yes'. \n"
+                    "Note: Do not proceed if you are in 'Training from Scratch' mode. \n"
+                    "Input 'yes' to confirm: " + RESET).strip().lower()
+
+                    if confirmation != 'yes':
+                        print(RED + "Exiting the program. Please confirm the pretrain model path." + RESET)
+                        logging.error(GREEN + f"Please check your network connection. \n" + RESET)
+                        logging.error(GREEN + "Or download the model manually from " + RESET + f"{download_url}" \
+                                    + GREEN + " to " + RESET + f"{local_model_dir}." + RESET)
                         exit()
-                logging.error(f"{str(e)}")
-                logging.warning(f"Skip Loading Pretrain HGNetv2. Make sure you are not in 'Training' mode.")
+       
+                logging.error(RED + f"{str(e)}" + RESET)
+                logging.error(RED + "CRITICAL WARNING: Failed to load pretrained HGNetV2 model" + RESET)
                 wait_for_confirmation()
 
     def _freeze_norm(self, m: nn.Module):

@@ -29,7 +29,6 @@ deployment/
 start.md
 weight/
 tb/
-tb0902/
 saved_filtered_view/
 saved_predictions_view/
 code/
@@ -38,5 +37,4 @@ code/
 *.png
 *.ttf
 vis.py
-start.sh
 D-FINE/

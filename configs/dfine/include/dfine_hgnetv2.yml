@@ -16,7 +16,7 @@ DFINE:
 
 HGNetv2:
   pretrained: True
-  prefix: weight/hgnetv2/PPHGNetV2_
+  local_model_dir: weight/hgnetv2/
 
 HybridEncoder:
   in_channels: [512, 1024, 2048]
