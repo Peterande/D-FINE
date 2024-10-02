@@ -1,5 +1,6 @@
-<!-- ## 🚀 Updates
-- \[2024.10.7\] Release D-FINE series. -->
+## 🚀 Updates
+- \[2024.10.3\] Release D-FINE series.
+- \[Next\] Release D-FINE series pretrained on Objects365.
 
 
 This is the official implementation of papers 
@@ -28,14 +29,14 @@ pip install -r requirements.txt
 ### Base models
 | Model | Dataset | AP<sup>val</sup> | #Params | FPS | GFLOPs | config | checkpoint |
 | :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: |
-**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.5](xxx.pth)
-**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_coco.yml) | [52.3](xxx.pth)
-**D-FINE-L** | COCO | **54.0** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_coco.yml) | [54.0](xxx.pth)
-**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_coco.yml) | [55.8](xxx.pth)
-<!-- **D-FINE-S** | COCO+365 | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
-**D-FINE-M** | COCO+365 | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
-**D-FINE-L** | COCO+365 | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/objects365/dfine_hgnetv2_l_obj2coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
-**D-FINE-X** | COCO+365 | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/objects365/dfine_hgnetv2_x_obj2coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth) -->
+**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.5](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_s_coco.pth)
+**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_coco.yml) | [52.3](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_m_coco.pth)
+**D-FINE-L** | COCO | **54.0** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_coco.yml) | [54.0](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_l_coco.pth)
+**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_coco.yml) | [55.8](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_x_coco.pth)
+**D-FINE-S** | COCO+365 | **50.3** |  10M | 287 | 25 | [config](./configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml) | []()
+**D-FINE-M** | COCO+365 | **55.0** |  19M | 180 | 57 | [config](./configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml) | []()
+**D-FINE-L** | COCO+365 | **56.9** |  31M | 129 | 91 | [config](./configs/dfine/objects365/dfine_hgnetv2_l_obj2coco.yml) | []()
+**D-FINE-X** | COCO+365 | **59.0** |  62M | 81 | 202 | [config](./configs/dfine/objects365/dfine_hgnetv2_x_obj2coco.yml) | []()
 
 **Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
