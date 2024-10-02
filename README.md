@@ -41,9 +41,9 @@ pip install -r requirements.txt
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
 - `COCO+365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
-- `Stage 1`: AP<sup>val</sup> before tuning off advanced augmentations in the final few epochs (Objects365 AP<sup>val</sup> if dataset is `COCO+365`). \
+<!-- - `Stage 1`: AP<sup>val</sup> before tuning off advanced augmentations in the final few epochs (Objects365 AP<sup>val</sup> if dataset is `COCO+365`). \
 These ckpts offering better generalization.
-- `Stage 2`: Best AP<sup>val</sup> after disabling advanced augmentations in the final few epochs. (COCO AP<sup>val</sup> if dataset is `COCO+365`)
+- `Stage 2`: Best AP<sup>val</sup> after disabling advanced augmentations in the final few epochs. (COCO AP<sup>val</sup> if dataset is `COCO+365`) -->
 
 ## Usage
 <details>
@@ -55,19 +55,19 @@ model=l
 ```
 1. Training
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml --use-amp --seed=0
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml --use-amp --seed=0
 ```
 
 <!-- <summary>2. Testing </summary> -->
 2. Testing
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r path/to/checkpoint --test-only
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --test-only
 ```
 
 <!-- <summary>3. Tuning </summary> -->
 3. Tuning
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -t path/to/checkpoint --use-amp --seed=0
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -t model.pth --use-amp --seed=0
 ```
 </details>
 
