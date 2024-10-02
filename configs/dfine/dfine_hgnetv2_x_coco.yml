@@ -28,8 +28,7 @@ HybridEncoder:
 
 DFINETransformer:
   feat_channels: [384, 384, 384]
-  num_layers: 6
-  eval_idx: -1
+  reg_scale: 8
 
 optimizer:
   type: AdamW

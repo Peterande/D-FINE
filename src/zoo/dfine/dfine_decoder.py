@@ -501,7 +501,7 @@ class TransformerDecoder(nn.Module):
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(ref_points_initial, integral(pred_corners, project), reg_scale)
             
-            if True or i == self.eval_idx:
+            if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
                 # Lqe does not affect the performance here.
                 scores = self.lqe_layers[i](scores, pred_corners) 
@@ -510,7 +510,7 @@ class TransformerDecoder(nn.Module):
                 dec_out_pred_corners.append(pred_corners)
                 dec_out_refs.append(ref_points_initial) 
                         
-                if not True:
+                if not self.training:
                     break  
                         
             pred_corners_undetach = pred_corners
@@ -549,7 +549,8 @@ class DFINETransformer(nn.Module):
                  cross_attn_method='default', 
                  query_select_method='default',
                  reg_max=32,
-                 layer_scale=2):
+                 reg_scale=4.,
+                 layer_scale=1):
         super().__init__()
         assert len(feat_channels) <= num_levels
         assert len(feat_strides) == len(feat_channels)
@@ -580,7 +581,7 @@ class DFINETransformer(nn.Module):
         
         # Transformer module
         self.up = nn.Parameter(torch.tensor([0.5]), requires_grad=False)
-        self.reg_scale = nn.Parameter(torch.tensor([4.]), requires_grad=False)
+        self.reg_scale = nn.Parameter(torch.tensor([reg_scale]), requires_grad=False)
         decoder_layer = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
             activation, num_levels, num_points, cross_attn_method=cross_attn_method)
         decoder_layer_wide = TransformerDecoderLayer(hidden_dim, nhead, dim_feedforward, dropout, \
@@ -870,13 +871,13 @@ class DFINETransformer(nn.Module):
             dn_out_refs, out_refs = torch.split(out_refs, dn_meta['dn_num_split'], dim=2)
         
 
-        if True:
+        if self.training:
             out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1], 'pred_corners': out_corners[-1], 
                    'ref_points': out_refs[-1], 'up': self.up, 'reg_scale': self.reg_scale}
         else:
             out = {'pred_logits': out_logits[-1], 'pred_boxes': out_bboxes[-1]}
 
-        if True and self.aux_loss:
+        if self.training and self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss2(out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], 
                                                      out_corners[-1], out_logits[-1])
             out['enc_aux_outputs'] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)

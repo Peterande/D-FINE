@@ -54,7 +54,7 @@ class DFINECriterion(nn.Module):
         self.share_matched_indices = share_matched_indices
         self.alpha = alpha
         self.gamma = gamma
-        self.dfl_targets, self.dfl_targets_dn = None, None
+        self.fgl_targets, self.fgl_targets_dn = None, None
         self.own_targets, self.own_targets_dn = None, None
         self.reg_max = reg_max
         self.num_pos, self.num_neg = None, None
@@ -123,7 +123,8 @@ class DFINECriterion(nn.Module):
         return losses
 
     def loss_local(self, outputs, targets, indices, num_boxes, T=5):
-        """Compute the distribution focal loss and the GO-LSD loss"""
+        """Compute Fine-Grained Localization (FGL) Loss 
+            and Decoupled Distillation Focal (DDF) Loss. """
         losses = {}
         idx = self._get_src_permutation_idx(indices)
         if 'pred_corners' in outputs:
@@ -132,20 +133,20 @@ class DFINECriterion(nn.Module):
             pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))
             ref_points = outputs['ref_points'][idx].detach()
             with torch.no_grad():
-                if self.dfl_targets_dn is None and 'is_dn' in outputs:
-                        self.dfl_targets_dn= bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes), 
+                if self.fgl_targets_dn is None and 'is_dn' in outputs:
+                        self.fgl_targets_dn= bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes), 
                                                         self.reg_max, outputs['reg_scale'], outputs['up'])
-                if self.dfl_targets is None and 'is_dn' not in outputs:
-                        self.dfl_targets = bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes), 
+                if self.fgl_targets is None and 'is_dn' not in outputs:
+                        self.fgl_targets = bbox2distance(ref_points, box_cxcywh_to_xyxy(target_boxes), 
                                                         self.reg_max, outputs['reg_scale'], outputs['up'])
 
-            target_corners, weight_right, weight_left = self.dfl_targets_dn if 'is_dn' in outputs else self.dfl_targets
+            target_corners, weight_right, weight_left = self.fgl_targets_dn if 'is_dn' in outputs else self.fgl_targets
                 
             ious = torch.diag(box_iou(\
                         box_cxcywh_to_xyxy(outputs['pred_boxes'][idx]), box_cxcywh_to_xyxy(target_boxes))[0])
             weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
             
-            losses['loss_dfl'] = self.unimodal_distribution_focal_loss(
+            losses['loss_fgl'] = self.unimodal_distribution_focal_loss(
                 pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
         
         if 'teacher_corners' in outputs:  
@@ -168,7 +169,7 @@ class DFINECriterion(nn.Module):
                     self.num_pos, self.num_neg = (mask.sum() * batch_scale) ** 0.5, ((~mask).sum() * batch_scale) ** 0.5
                 loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
                 loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
-                losses['loss_local'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
+                losses['loss_ddf'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
         
         return losses
 
@@ -227,7 +228,7 @@ class DFINECriterion(nn.Module):
         # Retrieve the matching between the outputs of the last layer and the targets
         indices = self.matcher(outputs_without_aux, targets)['indices']
 
-        self.dfl_targets, self.dfl_targets_dn = None, None
+        self.fgl_targets, self.fgl_targets_dn = None, None
         self.own_targets, self.own_targets_dn = None, None
         self.num_pos, self.num_neg = None, None
         if 'aux_outputs' in outputs:

@@ -52,6 +52,7 @@ DFINETransformer:
   box_noise_scale: 1.0
 
   reg_max: 32
+  reg_scale: 4
   layer_scale: 1
 
   # NEW
@@ -65,7 +66,7 @@ DFINEPostProcessor:
 
 
 DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.15, loss_local: 1.5}
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5}
   losses: ['vfl', 'boxes', 'local']
   alpha: 0.75
   gamma: 2.0

@@ -192,22 +192,14 @@ class BaseSolver(object):
         if pretrain_state_dict['decoder.denoising_class_embed.weight'].size() != \
                 cur_state_dict['decoder.denoising_class_embed.weight'].size():
             del pretrain_state_dict['decoder.denoising_class_embed.weight']
+
         head_param_names = [
             'decoder.enc_score_head.weight',
-            'decoder.enc_score_head.bias',
-            'decoder.dec_score_head.0.weight',
-            'decoder.dec_score_head.0.bias',
-            'decoder.dec_score_head.1.weight',
-            'decoder.dec_score_head.1.bias',
-            'decoder.dec_score_head.2.weight',
-            'decoder.dec_score_head.2.bias',
-            'decoder.dec_score_head.3.weight',
-            'decoder.dec_score_head.3.bias',
-            'decoder.dec_score_head.4.weight',
-            'decoder.dec_score_head.4.bias',
-            'decoder.dec_score_head.5.weight',
-            'decoder.dec_score_head.5.bias'
+            'decoder.enc_score_head.bias'
         ]
+        for i in range(8):
+            head_param_names.append(f'decoder.dec_score_head.{i}.weight')
+            head_param_names.append(f'decoder.dec_score_head.{i}.bias')
 
         adjusted_params = []
 

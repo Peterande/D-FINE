@@ -48,13 +48,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 print(outputs['pred_boxes']) 
                 state = model.state_dict()
                 new_state = {}
-                for key, value in state.items():
+                for key, value in model.state_dict().items():
                     # Replace 'module' with 'model' in each key
                     new_key = key.replace('module.', '')
-                    # Add the updated key-value pair to the new state dictionary
-                    new_state[new_key] = value
-                state = new_state
-                dist_utils.save_on_master(state, "/home/pengys/code/rtdetrv2_pytorch/tb0902/b0_obj365_fix/NaN.pth")
+                    # Add the updated key-value pair to the state dictionary
+                    state[new_key] = value
+                new_state['model'] = state
+                dist_utils.save_on_master(new_state, "./NaN.pth")
             
             with torch.autocast(device_type=str(device), enabled=False):
                 loss_dict = criterion(outputs, targets, **metas)
