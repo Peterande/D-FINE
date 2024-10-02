@@ -160,7 +160,7 @@ python benchmark/TRT/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir m
 
 
 ## Citation
-If you use `DFINE` in your work, please use the following BibTeX entries:
+If you use `D-FINE` in your work, please use the following BibTeX entries:
 
 <details>
 <summary> bibtex </summary>
