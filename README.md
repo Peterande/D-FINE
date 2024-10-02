@@ -26,12 +26,12 @@ pip install -r requirements.txt
 ## Model Zoo
 
 ### Base models
-| Model | Dataset | AP<sup>val</sup> | #Params | FPS | GFLOPs | config | Stage 1 | Stage 2 |
-| :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
-**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
-**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
-**D-FINE-L** | COCO | **54.0** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_coco.yml) | [53.8](xxx.pth) | [54.0](xxx.pth)
-**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_coco.yml) | [55.6](xxx.pth) | [55.8](xxx.pth)
+| Model | Dataset | AP<sup>val</sup> | #Params | FPS | GFLOPs | config | checkpoint |
+| :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: |
+**D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.5](xxx.pth)
+**D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/dfine_hgnetv2_m_coco.yml) | [52.3](xxx.pth)
+**D-FINE-L** | COCO | **54.0** |  31M | 129 | 91 | [config](./configs/dfine/dfine_hgnetv2_l_coco.yml) | [54.0](xxx.pth)
+**D-FINE-X** | COCO | **55.8** |  62M | 81 | 202 | [config](./configs/dfine/dfine_hgnetv2_x_coco.yml) | [55.8](xxx.pth)
 <!-- **D-FINE-S** | COCO+365 | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml) | [48.1](xxx.pth) | [48.5](xxx.pth)
 **D-FINE-M** | COCO+365 | **52.3** |  19M | 180 | 57 | [config](./configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml) | [52.1](xxx.pth) | [52.3](xxx.pth)
 **D-FINE-L** | COCO+365 | **53.9** |  31M | 129 | 91 | [config](./configs/dfine/objects365/dfine_hgnetv2_l_obj2coco.yml) | [53.8](xxx.pth) | [53.9](xxx.pth)
