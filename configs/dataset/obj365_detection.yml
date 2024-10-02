@@ -18,8 +18,8 @@ train_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /data/wupx/OpenDataLab___Objects365/raw/train/
-    ann_file: /data/wupx/OpenDataLab___Objects365/raw/train/new_zhiyuan_objv2_train_resized.json
+    img_folder: /data/OpenDataLab___Objects365/raw/train/
+    ann_file: /data/OpenDataLab___Objects365/raw/train/new_zhiyuan_objv2_train_resized.json
     return_masks: False
     transforms:
       type: Compose
@@ -35,8 +35,8 @@ val_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /data/wupx/OpenDataLab___Objects365/raw/val/
-    ann_file: /data/wupx/OpenDataLab___Objects365/raw/val/new_zhiyuan_objv2_val_resized.json
+    img_folder: /data/OpenDataLab___Objects365/raw/val/
+    ann_file: /data/OpenDataLab___Objects365/raw/val/new_zhiyuan_objv2_val_resized.json
     return_masks: False
     transforms:
       type: Compose
