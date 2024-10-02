@@ -35,10 +35,6 @@ optimizer:
   weight_decay: 0.000125
 
 epoches: 36 # Early stop
-
-DFINECriterion:
-  end_epoch: 36
-
 train_dataloader: 
   dataset: 
     transforms:
@@ -47,11 +43,5 @@ train_dataloader:
   collate_fn:
     stop_epoch: 500
     scale_ori_repeat: 4
-
-ema:
-  decay: 0.9999
-
-DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.05, loss_local: 0.5}
 
 checkpoint_freq: 1

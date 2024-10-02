@@ -7,7 +7,7 @@ __include__: [
 ]
 
 
-output_dir: ../../output/dfine_hgnetv2_x_6x_coco
+output_dir: ../../output/dfine_hgnetv2_x_coco
 
 
 DFINE:
@@ -46,10 +46,6 @@ optimizer:
 
 # Increase to search for the optimal ema
 epoches: 80 # 74
-
-DFINECriterion:
-  end_epoch: 72
-
 train_dataloader: 
   dataset: 
     transforms:

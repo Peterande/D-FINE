@@ -50,26 +50,19 @@ optimizer:
   weight_decay: 0.0001
 
 
-epoches: 72
-
-DFINECriterion:
-  end_epoch: 48
-
+epoches: 36
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 48
+        epoch: 24
   collate_fn:
-    stop_epoch: 48
+    stop_epoch: 24
     ema_restart_decay: 0.9999
-    scale_ori_repeat: 10
+    scale_ori_repeat: 20
 
 ema:
   warmups: 0
-
-DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.1, loss_local: 1.0}
   
 lr_warmup_scheduler:
   warmup_duration: 0

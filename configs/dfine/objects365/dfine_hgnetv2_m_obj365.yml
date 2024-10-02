@@ -43,15 +43,11 @@ optimizer:
       params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
       weight_decay: 0.
 
-  lr: 0.0002
+  lr: 0.00025
   betas: [0.9, 0.999]
-  weight_decay: 0.0001
+  weight_decay: 0.000125
 
 epoches: 36 # Early stop
-
-DFINECriterion:
-  end_epoch: 36
-
 train_dataloader: 
   dataset: 
     transforms:
@@ -63,8 +59,5 @@ train_dataloader:
 
 ema:
   decay: 0.9999
-
-DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_dfl: 0.05, loss_local: 0.5}
 
 checkpoint_freq: 1
