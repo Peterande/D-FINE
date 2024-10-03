@@ -65,7 +65,7 @@ These ckpts offering better generalization.
 
 ## Quick start
 
-<details>
+<details open>
 <summary> Setup </summary>
   
 ```shell
@@ -173,7 +173,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 </details>
 
-<details open>
+<details>
 <summary>Custom dataset</summary>
 
 To train on your custom dataset, you need to organize it in the COCO format. Follow the steps below to prepare your dataset:
