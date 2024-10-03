@@ -39,7 +39,7 @@ This is the official implementation of the paper: [D-FINE: Redefine Regression T
 
 ## 🚀 Updates
 - 🗓️ **\[2024.10.3\]** Release D-FINE series.
-- 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365.
+<!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
   
 ## Model Zoo
 
@@ -55,7 +55,7 @@ This is the official implementation of the paper: [D-FINE: Redefine Regression T
 **D-FINE-L** | COCO+Objects365 | **56.9** |  31M | 129 | 91 | [config](./configs/dfine/objects365/dfine_hgnetv2_l_obj2coco.yml) | []() |
 **D-FINE-X** | COCO+Objects365 | **59.0** |  62M | 81 | 202 | [config](./configs/dfine/objects365/dfine_hgnetv2_x_obj2coco.yml) | []() |
 
-**📌 Notes:**
+**Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
 - `COCO+Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
