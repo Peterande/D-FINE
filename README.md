@@ -1,12 +1,11 @@
-## 🚀 Updates
-- \[2024.10.3\] Release D-FINE series.
-- \[Next\] Release D-FINE series pretrained on Objects365.
+# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
 
-
-This is the official implementation of papers 
+This is the official implementation of paper:
 - [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
 
-<summary>Fig</summary>
+
+
+
 
 <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
@@ -14,16 +13,10 @@ This is the official implementation of papers
 <td><img src=https://github.com/Peterande/storage/blob/main/flops.png border=0 width=333></td>
 </tr></table>
 
-## Quick start
-
-<details open>
-<summary>Setup</summary>
-
-```shell
-
-pip install -r requirements.txt
-```
-
+## 🚀 Updates
+- \[2024.10.3\] Release D-FINE series.
+- \[Next\] Release D-FINE series pretrained on Objects365.
+  
 ## Model Zoo
 
 ### Base models
@@ -46,99 +39,162 @@ pip install -r requirements.txt
 These ckpts offering better generalization.
 - `Stage 2`: Best AP<sup>val</sup> after disabling advanced augmentations in the final few epochs. (COCO AP<sup>val</sup> if dataset is `COCO+365`) -->
 
-## Usage
+## Quick start
+
+<details>
+<summary>Setup</summary>
+
+```shell
+
+pip install -r requirements.txt
+```
+
+</details>
+
+## Dataset Prepare
 <details>
 <summary> COCO </summary>
 
-<!-- <summary>1. Training </summary> -->
-```shell
-model=l 
-```
-1. Training
-```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml --use-amp --seed=0
-```
+1. Download COCO2017 from [OpenDataLab](https://opendatalab.com/OpenDataLab/COCO_2017). 
+1. Modify paths in [coco_detection.yml](./configs/dataset/coco_detection.yml)
 
-<!-- <summary>2. Testing </summary> -->
-2. Testing
-```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --test-only
-```
-
-<!-- <summary>3. Tuning </summary> -->
-3. Tuning
-```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 tools/train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -t model.pth --use-amp --seed=0
-```
 </details>
 
-<!-- <details>
-<summary> Objects365 to COCO </summary>
-1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365/cli/main).
-After decompressing the dataset, make sure to copy the contents of val/v1 and val/v2 into train/images_from_val to prepare for the next step.
+<details>
+<summary> Objects365 </summary>
+
+1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365). 
+
+2. Set the Base Directory:
+```shell
+export BASE_DIR=/data/Objects365/data
+```
+
+3. Create a New Directory to Store Images from the Validation Set:
+```shell
+mkdir -p ${BASE_DIR}/train/images_from_val
+```
+
+3. Copy the v1 and v2 folders from the val directory into the train/images_from_val directory
+```shell
+cp -r ${BASE_DIR}/val/images/v1 ${BASE_DIR}/train/images_from_val/
+cp -r ${BASE_DIR}/val/images/v2 ${BASE_DIR}/train/images_from_val/
+```
+
+4. Directory structure after copying:
 
 ```shell
-/data/username/Objects365/data/train
+${BASE_DIR}/train
 ├── images_from_val
 ├── images
 │   ├── v1
 │   │   ├── patch0
 │   │   │   ├── 000000000.jpg
+│   │   │   ├── 000000001.jpg
+│   │   │   └── ... (more images)
 │   ├── v2
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
-├── /data/Objects365/data/train/zhiyuan_objv2_train.json
+│   │   │   ├── 000000001.jpg
+│   │   │   └── ... (more images)
+├── zhiyuan_objv2_train.json
 ```
 
 ```shell
-/data/username/Objects365/data/val
+${BASE_DIR}/val
 ├── images
 │   ├── v1
 │   │   ├── patch0
 │   │   │   ├── 000000000.jpg
+│   │   │   └── ... (more images)
 │   ├── v2
 │   │   ├── patchx
 │   │   │   ├── 000000000.jpg
-├── /data/Objects365/data/val/zhiyuan_objv2_val.json
+│   │   │   └── ... (more images)
+├── zhiyuan_objv2_val.json
 ```
 
-2. Once all the files are decompressed and organized, run the remap_obj365.py script. This script will merge samples with indices between 5000 and 800000 from the validation set into the training set.
+5. Run remap_obj365.py to merge a subset of the validation set into the training set. Specifically, this script moves samples with indices between 5000 and 800000 from the validation set to the training set.
 ```shell
-python tools/remap_obj365.py
+python tools/remap_obj365.py --base_dir ${BASE_DIR}
 ```
 
 
-3. Next, run the resize_obj365.py script to resize the dataset images that have a maximum edge length greater than 640 pixels. Make sure to use the updated JSON file created in Step 2 to read the sample data. Resize the samples in both the train and val datasets to ensure consistency.
+6. Run the resize_obj365.py script to resize any images in the dataset where the maximum edge length exceeds 640 pixels. Use the updated JSON file generated in Step 2 to process the sample data. Ensure that you resize images in both the train and val datasets to maintain consistency.
 ```shell
-python tools/resize_obj365.py
+python tools/resize_obj365.py --base_dir ${BASE_DIR}
 ```
 
-4. Training on Objects365
+7. Modify paths in [obj365_detection.yml](./configs/dataset/obj365_detection.yml)
+
+
+</details>
+
+## Usage
+<details>
+<summary> COCO </summary>
+
+<!-- <summary>1. Training </summary> -->
+1. Set Model:
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node=8 tools/train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj365.yml --use-amp --seed=0
+export model=l
 ```
 
-5. Turning on COCO
+2. Training
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --master_port=777 --nproc_per_node=8 tools/train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj2coco.yml --use-amp --seed=0 -t model.pth
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml --use-amp --seed=0
 ```
-</details> -->
+
+<!-- <summary>2. Testing </summary> -->
+3. Testing
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --test-only
+```
+
+<!-- <summary>3. Tuning </summary> -->
+4. Tuning
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -t model.pth --use-amp --seed=0
+```
+</details>
+
+
+<details>
+<summary> Objects365 to COCO </summary>
+
+1. Set Model:
+```shell
+export model=l
+```
+
+2. Training on Objects365
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj365.yml --use-amp --seed=0
+```
+
+3. Turning on COCO
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj2coco.yml --use-amp --seed=0 -t model.pth
+```
+</details>
 
 <details>
 <summary> Deployment and Benchmark </summary>
 
 <!-- <summary>4. Export onnx </summary> -->
+1. Set Model:
 ```shell
-model=l 
+export model=l
 ```
-1. Export onnx and tensorrt
+
+2. Export onnx and tensorrt
 ```shell
 python tools/export_onnx.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --check
 trtexec --onnx="./model.onnx" --saveEngine="./model.engine" --fp16
 ```
 
 <!-- <summary>5. Inference </summary> -->
-2. Inference
+3. Inference
 
 Support torch, onnxruntime, tensorrt and openvino, see details in *benchmark/inference*
 ```shell
@@ -148,7 +204,7 @@ python benchmark/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_
 ```
 
 <!-- <summary>6. Benchmark </summary> -->
-3. Benchmark (Params. / GFLOPs / Latency)
+4. Benchmark (Params. / GFLOPs / Latency)
 ```shell
 pip install -r benchmark/requirements.txt
 python benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
