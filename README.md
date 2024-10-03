@@ -342,9 +342,7 @@ trtexec --onnx="./model.onnx" --saveEngine="./model.engine" --fp16
 ```
 
 <!-- <summary>5. Inference </summary> -->
-3. Inference
-
-Support torch, onnxruntime, tensorrt and openvino, see details in *benchmark/inference*
+3. Inference (onnxruntime / tensorrt / torch)
 ```shell
 python benchmark/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
 python benchmark/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
