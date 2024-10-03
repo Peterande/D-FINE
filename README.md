@@ -1,11 +1,32 @@
-# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
+<!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
+
+<h2 align="center">D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement</h2>
+<p align="center">
+    <!-- <a href="https://github.com/lyuwenyu/RT-DETR/blob/main/LICENSE">
+        <img alt="license" src="https://img.shields.io/badge/LICENSE-Apache%202.0-blue">
+    </a> -->
+    <a href="https://github.com/Peterande/D-FINE/blob/master/LICENSE">
+        <img alt="license" src="https://img.shields.io/github/license/Peterande/D-FINE">
+    </a>
+    <a href="https://github.com/Peterande/D-FINE/pulls">
+        <img alt="prs" src="https://img.shields.io/github/issues-pr/Peterande/D-FINE">
+    </a>
+    <a href="https://github.com/Peterande/D-FINE/issues">
+        <img alt="issues" src="https://img.shields.io/github/issues/Peterande/D-FINE?color=pink">
+    </a>
+    <a href="https://github.com/Peterande/D-FINE">
+        <img alt="issues" src="https://img.shields.io/github/stars/Peterande/D-FINE">
+    </a>
+    <a href="https://arxiv.org/abs/xxx.xxx">
+        <img alt="arXiv" src="https://img.shields.io/badge/arXiv-xxx.xxx-red">
+    </a>
+    <a href="mailto: pengyansong@mail.ustc.edu.cn">
+        <img alt="emal" src="https://img.shields.io/badge/contact_me-email-yellow">
+    </a>
+</p>
 
 This is the official implementation of paper:
 - [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
-
-
-
-
 
 <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
