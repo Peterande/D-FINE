@@ -27,8 +27,9 @@
     </a>
 </p>
 
-This is the official implementation of paper:
-- [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
+This is the official implementation of the paper: [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx)
+
+
 
 <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
@@ -37,8 +38,8 @@ This is the official implementation of paper:
 </tr></table>
 
 ## 🚀 Updates
-- \[2024.10.3\] Release D-FINE series.
-- \[Next\] Release D-FINE series pretrained on Objects365.
+- 🗓️ **\[2024.10.3\]** Release D-FINE series.
+- 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365.
   
 ## Model Zoo
 
@@ -54,7 +55,7 @@ This is the official implementation of paper:
 **D-FINE-L** | COCO+Objects365 | **56.9** |  31M | 129 | 91 | [config](./configs/dfine/objects365/dfine_hgnetv2_l_obj2coco.yml) | []() |
 **D-FINE-X** | COCO+Objects365 | **59.0** |  62M | 81 | 202 | [config](./configs/dfine/objects365/dfine_hgnetv2_x_obj2coco.yml) | []() |
 
-**Notes:**
+**📌 Notes:**
 - `AP` is evaluated on *MSCOCO val2017* dataset.
 - `FPS` is evaluated on a single T4 GPU with $batch\\_size = 1$, $fp16$, and $TensorRT==10.4.0$.
 - `COCO+Objects365` in the table means finetuned model on `COCO` using pretrained weights trained on `Objects365`.
@@ -65,8 +66,8 @@ These ckpts offering better generalization.
 ## Quick start
 
 <details>
-<summary>Setup</summary>
-
+<summary> Setup </summary>
+  
 ```shell
 
 pip install -r requirements.txt
@@ -74,17 +75,27 @@ pip install -r requirements.txt
 
 </details>
 
-## Dataset Prepare
+
 <details>
-<summary> COCO </summary>
+  
+<summary> COCO2017 dataset </summary>
 
 1. Download COCO2017 from [OpenDataLab](https://opendatalab.com/OpenDataLab/COCO_2017). 
 1. Modify paths in [coco_detection.yml](./configs/dataset/coco_detection.yml)
 
+       ```yaml
+        train_dataloader: 
+          img_folder: /data/COCO2017/train2017/
+          ann_file: /data/COCO2017/annotations/instances_train2017.json
+        val_dataloader:
+          img_folder: /data/COCO2017/val2017/
+          ann_file: /data/COCO2017/annotations/instances_val2017.json
+      ```
+      
 </details>
 
 <details>
-<summary> Objects365 </summary>
+<summary> Objects365 dataset </summary>
 
 1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365). 
 
@@ -150,6 +161,120 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 7. Modify paths in [obj365_detection.yml](./configs/dataset/obj365_detection.yml)
 
+       ```yaml
+        train_dataloader: 
+            img_folder: /data/Objects365/data/train
+            ann_file: /data/Objects365/data/train/new_zhiyuan_objv2_train_resized.json
+        val_dataloader:
+          img_folder:  /data/Objects365/data/val/
+          ann_file:  /data/Objects365/data/val/new_zhiyuan_objv2_val_resized.json
+      ```
+
+
+</details>
+
+<details open>
+<summary>Custom dataset</summary>
+
+To train on your custom dataset, you need to organize it in the COCO format. Follow the steps below to prepare your dataset:
+
+1. **Set `remap_mscoco_category` to `False`:**
+
+    This prevents the automatic remapping of category IDs to match the MSCOCO categories.
+
+    ```yaml
+    remap_mscoco_category: False
+    ```
+
+2. **Organize Images:**
+
+    Structure your dataset directories as follows:
+
+    ```shell
+    dataset/
+    ├── images/
+    │   ├── train/
+    │   │   ├── image1.jpg
+    │   │   ├── image2.jpg
+    │   │   └── ...
+    │   ├── val/
+    │   │   ├── image1.jpg
+    │   │   ├── image2.jpg
+    │   │   └── ...
+    └── annotations/
+        ├── instances_train.json
+        ├── instances_val.json
+        └── ...
+    ```
+
+    - **`images/train/`**: Contains all training images.
+    - **`images/val/`**: Contains all validation images.
+    - **`annotations/`**: Contains COCO-formatted annotation files.
+
+3. **Convert Annotations to COCO Format:**
+
+    If your annotations are not already in COCO format, you'll need to convert them. You can use the following Python script as a reference or utilize existing tools:
+
+    ```python
+    import json
+
+    def convert_to_coco(input_annotations, output_annotations):
+        # Implement conversion logic here
+        pass
+
+    if __name__ == "__main__":
+        convert_to_coco('path/to/your_annotations.json', 'dataset/annotations/instances_train.json')
+    ```
+
+4. **Update Configuration Files:**
+
+    Modify your dataset configuration file to point to your custom dataset paths.
+
+    ```yaml
+    task: detection
+    
+    evaluator:
+      type: CocoEvaluator
+      iou_types: ['bbox', ]
+
+    num_classes: 777
+    remap_mscoco_category: False
+    
+    
+    train_dataloader: 
+      type: DataLoader
+      dataset: 
+        type: CocoDetection
+        img_folder: /data/yourdataset/train
+        ann_file: /data/yourdataset/train/ann.json
+        return_masks: False
+        transforms:
+          type: Compose
+          ops: ~
+      shuffle: True
+      num_workers: 4
+      drop_last: True 
+      collate_fn:
+        type: BatchImageCollateFuncion
+    
+    
+    val_dataloader:
+      type: DataLoader
+      dataset: 
+        type: CocoDetection
+        img_folder: /data/yourdataset/val
+        ann_file: /data/yourdataset/val/ann.json
+        return_masks: False
+        transforms:
+          type: Compose
+          ops: ~ 
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFuncion
+
+    ```
 
 </details>
 
@@ -183,7 +308,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 
 
 <details>
-<summary> Objects365 to COCO2017 </summary>
+<summary> Objects to COCO </summary>
 
 1. Set Model:
 ```shell
@@ -241,10 +366,10 @@ python benchmark/TRT/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir m
 ## Citation
 If you use `D-FINE` in your work, please use the following BibTeX entries:
 
-<details>
 <summary> bibtex </summary>
 
 ```latex
 
 ```
-</details>
+
+✨ Feel free to contribute and reach out if you have any questions! ✨
