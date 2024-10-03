@@ -62,3 +62,4 @@ ema:
   decay: 0.9999
 
 checkpoint_freq: 1
+print_freq: 1000

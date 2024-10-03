@@ -45,3 +45,4 @@ train_dataloader:
     scale_ori_repeat: 4
 
 checkpoint_freq: 1
+print_freq: 1000
