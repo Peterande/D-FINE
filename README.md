@@ -376,5 +376,6 @@ If you use `D-FINE` in your work, please use the following BibTeX entries:
 ```latex
 
 ```
+</details>
 
 ✨ Feel free to contribute and reach out if you have any questions! ✨
