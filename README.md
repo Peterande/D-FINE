@@ -155,7 +155,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 ## Usage
 <details>
-<summary> COCO </summary>
+<summary> COCO2017 </summary>
 
 <!-- <summary>1. Training </summary> -->
 1. Set Model:
@@ -183,7 +183,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 
 
 <details>
-<summary> Objects365 to COCO </summary>
+<summary> Objects365 to COCO2017 </summary>
 
 1. Set Model:
 ```shell
@@ -195,7 +195,7 @@ export model=l
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj365.yml --use-amp --seed=0
 ```
 
-3. Turning on COCO
+3. Turning on COCO2017
 ```shell
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj2coco.yml --use-amp --seed=0 -t model.pth
 ```
