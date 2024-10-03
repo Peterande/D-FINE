@@ -1,5 +1,8 @@
 <!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
-<h2 align="center">D-FINE: Redefine Regression Task of DETRs as <nobr>Fine-grained Distribution Refinement</nobr></h2>
+<h2 align="center">
+  D-FINE: Redefine Regression Task of DETRs as <span style="white-space: nowrap;">Fine-grained Distribution Refinement</span>
+</h2>
+
 
 
 
