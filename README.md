@@ -1,6 +1,6 @@
 <!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
+<h2 align="center">D-FINE: Redefine Regression Task of DETRs&nbsp;as&nbsp;Fine-grained Distribution&nbsp;Refinement</h2>
 
-<h2 align="center">D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement</h2>
 <p align="center">
     <!-- <a href="https://github.com/lyuwenyu/RT-DETR/blob/main/LICENSE">
         <img alt="license" src="https://img.shields.io/badge/LICENSE-Apache%202.0-blue">
