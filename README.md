@@ -39,9 +39,7 @@ Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 </p>
 
 <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
-<td><img src=https://github.com/Peterande/storage/blob/main/params.png border=0 width=333></td>
-<td><img src=https://github.com/Peterande/storage/blob/main/flops.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/main/stats_padded.png border=0 width=1000></td>
 </tr></table>
 
 ## 🚀 Updates
