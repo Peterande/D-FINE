@@ -38,9 +38,16 @@
 Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 </p>
 
+<!-- <table><tr>
+<td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/main/params.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/main/flops.png border=0 width=333></td>
+</tr></table> -->
+
 <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/stats_padded.png border=0 width=1000></td>
 </tr></table>
+
 
 ## 🚀 Updates
 - 🗓️ **\[2024.10.3\]** Release D-FINE series.
@@ -88,14 +95,14 @@ pip install -r requirements.txt
 1. Download COCO2017 from [OpenDataLab](https://opendatalab.com/OpenDataLab/COCO_2017). 
 1. Modify paths in [coco_detection.yml](./configs/dataset/coco_detection.yml)
 
-       ```yaml
-        train_dataloader: 
-          img_folder: /data/COCO2017/train2017/
-          ann_file: /data/COCO2017/annotations/instances_train2017.json
-        val_dataloader:
-          img_folder: /data/COCO2017/val2017/
-          ann_file: /data/COCO2017/annotations/instances_val2017.json
-      ```
+    ```yaml
+    train_dataloader: 
+        img_folder: /data/COCO2017/train2017/
+        ann_file: /data/COCO2017/annotations/instances_train2017.json
+    val_dataloader:
+        img_folder: /data/COCO2017/val2017/
+        ann_file: /data/COCO2017/annotations/instances_val2017.json
+    ```
       
 </details>
 
@@ -166,14 +173,14 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 7. Modify paths in [obj365_detection.yml](./configs/dataset/obj365_detection.yml)
 
-       ```yaml
-        train_dataloader: 
-            img_folder: /data/Objects365/data/train
-            ann_file: /data/Objects365/data/train/new_zhiyuan_objv2_train_resized.json
-        val_dataloader:
-          img_folder:  /data/Objects365/data/val/
-          ann_file:  /data/Objects365/data/val/new_zhiyuan_objv2_val_resized.json
-      ```
+    ```yaml
+    train_dataloader: 
+        img_folder: /data/Objects365/data/train
+        ann_file: /data/Objects365/data/train/new_zhiyuan_objv2_train_resized.json
+    val_dataloader:
+        img_folder:  /data/Objects365/data/val/
+        ann_file:  /data/Objects365/data/val/new_zhiyuan_objv2_val_resized.json
+    ```
 
 
 </details>
