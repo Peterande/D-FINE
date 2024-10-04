@@ -2,7 +2,7 @@ __include__: [
   '../../dataset/obj365_detection.yml',
   '../../runtime.yml',
   '../include/dataloader.yml',
-  '../include/optimizer_obj365.yml',
+  '../include/optimizer.yml',
   '../include/dfine_hgnetv2.yml',
 ]
 
@@ -44,5 +44,8 @@ train_dataloader:
     stop_epoch: 500
     scale_ori_repeat: 4
 
+ema:
+  decay: 0.9999
+  
 checkpoint_freq: 1
 print_freq: 1000

@@ -4,10 +4,8 @@ model: DFINE
 criterion: DFINECriterion
 postprocessor: DFINEPostProcessor
 
-
 use_focal_loss: True
 eval_spatial_size: [640, 640] # h w
-
 
 DFINE:
   backbone: HGNetv2

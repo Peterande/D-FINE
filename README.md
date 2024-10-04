@@ -50,7 +50,7 @@ Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 
 
 ## 🚀 Updates
-- 🗓️ **\[2024.10.3\]** Release D-FINE series.
+- [x] **\[2024.10.3\]** Release D-FINE series.
 <!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
   
 ## Model Zoo
@@ -240,7 +240,7 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
 
 4. **Update Configuration Files:**
 
-    Modify your dataset configuration file to point to your custom dataset paths.
+    Modify your [custom_detection.yml](./configs/dataset/custom_detection.yml).
 
     ```yaml
     task: detection
@@ -249,16 +249,15 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
       type: CocoEvaluator
       iou_types: ['bbox', ]
 
-    num_classes: 777
+    num_classes: 777 # your dataset classes
     remap_mscoco_category: False
-    
     
     train_dataloader: 
       type: DataLoader
       dataset: 
         type: CocoDetection
         img_folder: /data/yourdataset/train
-        ann_file: /data/yourdataset/train/ann.json
+        ann_file: /data/yourdataset/train/train.json
         return_masks: False
         transforms:
           type: Compose
@@ -268,7 +267,6 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
       drop_last: True 
       collate_fn:
         type: BatchImageCollateFuncion
-    
     
     val_dataloader:
       type: DataLoader
@@ -285,7 +283,6 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
       drop_last: False
       collate_fn:
         type: BatchImageCollateFuncion
-
     ```
 
 </details>
@@ -336,7 +333,34 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 ```shell
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/objects365/dfine_hgnetv2_${model}_obj2coco.yml --use-amp --seed=0 -t model.pth
 ```
+
+<!-- <summary>2. Testing </summary> -->
+4. Testing
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --test-only
+```
 </details>
+
+
+<details>
+<summary> Custom dataset </summary>
+
+1. Set Model:
+```shell
+export model=l
+```
+
+2. Training on Custom dataset
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/custom/dfine_hgnetv2_${model}_custom.yml --use-amp --seed=0
+```
+<!-- <summary>2. Testing </summary> -->
+3. Testing
+```shell
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/custom/dfine_hgnetv2_${model}_custom.yml -r model.pth --test-only
+```
+</details>
+
 
 <details>
 <summary> Deployment </summary>
@@ -404,5 +428,9 @@ If you use `D-FINE` in your work, please use the following BibTeX entries:
 
 ```
 </details>
+
+## License and Acknowledgement
+This project is released under the Apache-2.0 license. Our work is built upon [RT-DETR](https://github.com/lyuwenyu/RT-DETR)
+Thanks to the inspirations and codes from [RT-DETR](https://github.com/lyuwenyu/RT-DETR) and [GFocal](https://github.com/implus/GFocal).
 
 ✨ Feel free to contribute and reach out if you have any questions! ✨

@@ -4,15 +4,8 @@ evaluator:
   type: CocoEvaluator
   iou_types: ['bbox', ]
 
-# num_classes: 365
-# remap_mscoco_category: False
-
-# num_classes: 91
-# remap_mscoco_category: False
-
 num_classes: 366
 remap_mscoco_category: False
-
 
 train_dataloader: 
   type: DataLoader

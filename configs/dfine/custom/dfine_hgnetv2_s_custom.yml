@@ -1,17 +1,15 @@
 __include__: [
-  '../../dataset/obj365_detection.yml',
+  '../../dataset/custom_detection.yml',
   '../../runtime.yml',
   '../include/dataloader.yml',
   '../include/optimizer.yml',
   '../include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ./output/dfine_hgnetv2_s_obj365
-
+output_dir: ./output/dfine_hgnetv2_s_custom
 
 DFINE:
   backbone: HGNetv2
-
 
 HGNetv2:
   name: 'B0'
@@ -29,7 +27,7 @@ HybridEncoder:
   hidden_dim: 256
   depth_mult: 0.34
   expansion: 0.5
-  
+
 optimizer:
   type: AdamW
   params: 
@@ -48,18 +46,14 @@ optimizer:
   betas: [0.9, 0.999]
   weight_decay: 0.000125
 
-epoches: 36 # Early stop
+# Increase to search for the optimal ema
+epoches: 130 # 124
 train_dataloader: 
   dataset: 
     transforms:
       policy:
-        epoch: 500
+        epoch: 120
   collate_fn:
-    stop_epoch: 500
+    stop_epoch: 120
+    ema_restart_decay: 0.9999
     scale_ori_repeat: 20
-
-ema:
-  decay: 0.9999
-
-checkpoint_freq: 1
-print_freq: 1000
