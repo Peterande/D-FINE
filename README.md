@@ -357,7 +357,7 @@ trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 </details>
 
 <details>
-<summary> Inference and Benchmark </summary>
+<summary> Inference / Benchmark / Visualization </summary>
 
 
 1. Setup:
