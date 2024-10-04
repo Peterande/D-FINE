@@ -9,18 +9,15 @@ import torchvision
 
 import copy
 
+from .dfine_utils import bbox2distance
 from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
 from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from ...core import register
-from .dfine_decoder import bbox2distance
 
 
 @register()
 class DFINECriterion(nn.Module):
-    """ This class computes the loss for DETR.
-    The process happens in two steps:
-        1) we compute hungarian assignment between ground truth boxes and the outputs of the model
-        2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
+    """ This class computes the loss for D-FINE.
     """
     __share__ = ['num_classes', ]
     __inject__ = ['matcher', ]
@@ -37,12 +34,12 @@ class DFINECriterion(nn.Module):
         share_matched_indices=False):
         """Create the criterion.
         Parameters:
-            matcher: module able to compute a matching between targets and proposals
-            num_classes: number of object categories, omitting the special no-object category
+            matcher: module able to compute a matching between targets and proposals.
             weight_dict: dict containing as key the names of the losses and as values their relative weight.
-            eos_coef: relative classification weight applied to the no-object category
             losses: list of all the losses to be applied. See get_loss for list of available losses.
-            boxes_weight_format: format for boxes weight (iou, )
+            num_classes: number of object categories, omitting the special no-object category.
+            reg_max (int): Max number of the discrete bins in D-FINE.
+            boxes_weight_format: format for boxes weight (iou, ).        
         """
         super().__init__()
         self.num_classes = num_classes
@@ -124,9 +121,10 @@ class DFINECriterion(nn.Module):
     def loss_local(self, outputs, targets, indices, num_boxes, T=5):
         """Compute Fine-Grained Localization (FGL) Loss 
             and Decoupled Distillation Focal (DDF) Loss. """
+        
         losses = {}
-        idx = self._get_src_permutation_idx(indices)
         if 'pred_corners' in outputs:
+            idx = self._get_src_permutation_idx(indices)
             target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
             pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))
@@ -140,35 +138,35 @@ class DFINECriterion(nn.Module):
                                                         self.reg_max, outputs['reg_scale'], outputs['up'])
 
             target_corners, weight_right, weight_left = self.fgl_targets_dn if 'is_dn' in outputs else self.fgl_targets
-                
+                    
             ious = torch.diag(box_iou(\
                         box_cxcywh_to_xyxy(outputs['pred_boxes'][idx]), box_cxcywh_to_xyxy(target_boxes))[0])
             weight_targets = ious.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
             
             losses['loss_fgl'] = self.unimodal_distribution_focal_loss(
                 pred_corners, target_corners, weight_right, weight_left, weight_targets, avg_factor=num_boxes)
-        
-        if 'teacher_corners' in outputs:  
-            pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))       
-            target_corners = outputs['teacher_corners'].reshape(-1, (self.reg_max+1))
-            if not torch.equal(pred_corners, target_corners):
-                weight_targets_local = outputs['teacher_logits'].sigmoid().max(dim=-1)[0]
-                
-                mask = torch.zeros_like(weight_targets_local, dtype=torch.bool)
-                mask[idx] = True
-                mask = mask.unsqueeze(-1).repeat(1, 1, 4).reshape(-1)
+            
+            if 'teacher_corners' in outputs:  
+                pred_corners = outputs['pred_corners'].reshape(-1, (self.reg_max+1))       
+                target_corners = outputs['teacher_corners'].reshape(-1, (self.reg_max+1))
+                if not torch.equal(pred_corners, target_corners):
+                    weight_targets_local = outputs['teacher_logits'].sigmoid().max(dim=-1)[0]
+                    
+                    mask = torch.zeros_like(weight_targets_local, dtype=torch.bool)
+                    mask[idx] = True
+                    mask = mask.unsqueeze(-1).repeat(1, 1, 4).reshape(-1)
 
-                weight_targets_local[idx] = ious.reshape_as(weight_targets_local[idx]).to(weight_targets_local.dtype)
-                weight_targets_local = weight_targets_local.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
+                    weight_targets_local[idx] = ious.reshape_as(weight_targets_local[idx]).to(weight_targets_local.dtype)
+                    weight_targets_local = weight_targets_local.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
 
-                loss_match_local = weight_targets_local * (T ** 2) * (nn.KLDivLoss(reduction='none')
-                (F.log_softmax(pred_corners / T, dim=1), F.softmax(target_corners.detach() / T, dim=1))).sum(-1)
-                if 'is_dn' not in outputs:
-                    batch_scale = 8 / outputs['pred_boxes'].shape[0]  # Avoid the influence of batch size
-                    self.num_pos, self.num_neg = (mask.sum() * batch_scale) ** 0.5, ((~mask).sum() * batch_scale) ** 0.5
-                loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
-                loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
-                losses['loss_ddf'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
+                    loss_match_local = weight_targets_local * (T ** 2) * (nn.KLDivLoss(reduction='none')
+                    (F.log_softmax(pred_corners / T, dim=1), F.softmax(target_corners.detach() / T, dim=1))).sum(-1)
+                    if 'is_dn' not in outputs:
+                        batch_scale = 8 / outputs['pred_boxes'].shape[0]  # Avoid the influence of batch size
+                        self.num_pos, self.num_neg = (mask.sum() * batch_scale) ** 0.5, ((~mask).sum() * batch_scale) ** 0.5
+                    loss_match_local1 = loss_match_local[mask].mean() if mask.any() else 0
+                    loss_match_local2 = loss_match_local[~mask].mean() if (~mask).any() else 0
+                    losses['loss_ddf'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
         
         return losses
 
@@ -185,12 +183,12 @@ class DFINECriterion(nn.Module):
         return batch_idx, tgt_idx
 
     def _get_go_indices(self, indices, indices_aux_list):
-        # indices_list is a list of indices for each layer
+        """Get a matching union set across all decoder layers. """
         results = []
         for indices_aux in indices_aux_list:
             indices = [(torch.cat([idx1[0], idx2[0]]), torch.cat([idx1[1], idx2[1]]))
                         for idx1, idx2 in zip(indices.copy(), indices_aux.copy())]  
-        # get global indices for each batch
+
         for ind in [torch.cat([idx[0][:, None], idx[1][:, None]], 1) for idx in indices]:
             unique, counts = torch.unique(ind, return_counts=True, dim=0)
             count_sort_indices = torch.argsort(counts, descending=True)
@@ -204,6 +202,11 @@ class DFINECriterion(nn.Module):
             final_cols = torch.tensor(list(column_to_row.values()), device=ind.device)
             results.append((final_rows.long(), final_cols.long()))
         return results   
+
+    def _clear_cache(self):
+        self.fgl_targets, self.fgl_targets_dn = None, None
+        self.own_targets, self.own_targets_dn = None, None
+        self.num_pos, self.num_neg = None, None
     
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
         loss_map = {
@@ -226,10 +229,9 @@ class DFINECriterion(nn.Module):
 
         # Retrieve the matching between the outputs of the last layer and the targets
         indices = self.matcher(outputs_without_aux, targets)['indices']
+        self._clear_cache()
 
-        self.fgl_targets, self.fgl_targets_dn = None, None
-        self.own_targets, self.own_targets_dn = None, None
-        self.num_pos, self.num_neg = None, None
+        # Get the matching union set across all decoder layers.
         if 'aux_outputs' in outputs:
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for i, aux_outputs in enumerate(outputs['aux_outputs'] + [outputs['pre_outputs']]):
@@ -239,7 +241,7 @@ class DFINECriterion(nn.Module):
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
                 indices_enc = self.matcher(aux_outputs, targets)['indices']
                 cached_indices_enc.append(indices_enc)
-                indices_aux_list.append(indices_enc) # TODO check copy
+                indices_aux_list.append(indices_enc)
             indices_go = self._get_go_indices(indices, indices_aux_list)
             
             num_boxes_go = sum(len(x[0]) for x in indices_go)
@@ -280,7 +282,8 @@ class DFINECriterion(nn.Module):
                     l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f'_aux_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict) 
-                    
+        
+        # In case of auxiliary traditional head output at first decoder layer.   
         if 'pre_outputs' in outputs:
             aux_outputs = outputs['pre_outputs']
             for loss in self.losses:
@@ -335,6 +338,7 @@ class DFINECriterion(nn.Module):
                     l_dict = {k + f'_dn_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
                     
+            # In case of auxiliary traditional head output at first decoder layer.         
             if 'dn_pre_outputs' in outputs:
                 aux_outputs = outputs['dn_pre_outputs']
                 for loss in self.losses:
@@ -344,7 +348,8 @@ class DFINECriterion(nn.Module):
                     l_dict = {k + f'_dn_pre': v for k, v in l_dict.items()}
                     losses.update(l_dict)   
                     
-        losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}  # For Objects365 pre-train.        
+        # For debugging Objects365 pre-train.  
+        losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}      
         return losses
 
     def get_loss_meta_info(self, loss, outputs, targets, indices):

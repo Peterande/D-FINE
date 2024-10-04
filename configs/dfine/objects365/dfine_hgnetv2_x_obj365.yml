@@ -6,7 +6,7 @@ __include__: [
   '../include/dfine_hgnetv2.yml',
 ]
 
-output_dir: ../../../output/dfine_hgnetv2_x_obj365
+output_dir: ./output/dfine_hgnetv2_x_obj365
 
 
 DFINE:

@@ -135,7 +135,6 @@ def convert_to_coco_api(ds):
         # targets = ds.get_annotations(img_idx)
         # img, targets = ds[img_idx]
 
-        # TODO (by lyuwenyu), load image and targets before `transforms`
         img, targets = ds.load_item(img_idx)
         width, height = img.size
         

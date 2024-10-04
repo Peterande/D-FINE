@@ -124,7 +124,6 @@ class TRTInference(object):
                 self.context.set_input_shape(n, blob[n].shape) 
                 self.bindings[n] = self.bindings[n]._replace(shape=blob[n].shape)
             
-            # TODO (lyuwenyu): check dtype, 
             assert self.bindings[n].data.dtype == blob[n].dtype, '{} dtype mismatch'.format(n)
             # if self.bindings[n].data.dtype != blob[n].shape:
             #     blob[n] = blob[n].to(self.bindings[n].data.dtype)

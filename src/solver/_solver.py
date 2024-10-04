@@ -16,6 +16,16 @@ def to(m: nn.Module, device: str):
     return m.to(device) 
 
 
+def remove_module_prefix(state_dict):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            new_state_dict[k[7:]] = v
+        else:
+            new_state_dict[k] = v
+    return new_state_dict
+
+
 class BaseSolver(object):
     def __init__(self, cfg: BaseConfig) -> None:
         self.cfg = cfg
@@ -137,7 +147,15 @@ class BaseSolver(object):
                 print(f'Load {k}.state_dict')
 
             if hasattr(v, 'load_state_dict') and k not in state:
-                print(f'Not load {k}.state_dict')
+                if k == 'ema':
+                    model = getattr(self, 'model', None)
+                    if model is not None:
+                        ema = dist_utils.de_parallel(v)
+                        model_state_dict = remove_module_prefix(model.state_dict())
+                        ema.load_state_dict({'module': model_state_dict})
+                        print(f'Load {k}.state_dict from model.state_dict')
+                else:
+                    print(f'Not load {k}.state_dict')
 
     def load_resume_state(self, path: str):
         """Load resume"""
