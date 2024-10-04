@@ -430,7 +430,10 @@ If you use `D-FINE` in your work, please use the following BibTeX entries:
 </details>
 
 ## License and Acknowledgement
-This project is released under the Apache-2.0 license. Our work is built upon [RT-DETR](https://github.com/lyuwenyu/RT-DETR)
+This project is released under the Apache-2.0 license. 
+
+Our work is built upon [RT-DETR](https://github.com/lyuwenyu/RT-DETR)
+
 Thanks to the inspirations and codes from [RT-DETR](https://github.com/lyuwenyu/RT-DETR) and [GFocal](https://github.com/implus/GFocal).
 
 ✨ Feel free to contribute and reach out if you have any questions! ✨
