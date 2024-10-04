@@ -431,6 +431,6 @@ If you use `D-FINE` in your work, please use the following BibTeX entries:
 
 ## Acknowledgement
 Our work is built upon [RT-DETR](https://github.com/lyuwenyu/RT-DETR).
-Thanks to the inspirations and codes from [RT-DETR](https://github.com/lyuwenyu/RT-DETR), [GFocal](https://github.com/implus/GFocal), and [YOLOv9](https://github.com/WongKinYiu/yolov9).
+Thanks to the inspirations from [RT-DETR](https://github.com/lyuwenyu/RT-DETR), [GFocal](https://github.com/implus/GFocal), [LD](https://github.com/HikariTJU/LD), and [YOLOv9](https://github.com/WongKinYiu/yolov9).
 
 ✨ Feel free to contribute and reach out if you have any questions! ✨
