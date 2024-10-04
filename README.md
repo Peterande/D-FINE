@@ -339,22 +339,36 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 </details>
 
 <details>
-<summary> Deployment and Benchmark </summary>
+<summary> Deployment </summary>
 
 <!-- <summary>4. Export onnx </summary> -->
-1. Set Model:
+1. Setup:
 ```shell
 export model=l
+pip install -r tools/requirements.txt
 ```
 
 2. Export onnx and tensorrt
 ```shell
-python tools/export_onnx.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --check
-trtexec --onnx="./model.onnx" --saveEngine="./model.engine" --fp16
+python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 ```
 
+</details>
+
+<details>
+<summary> Inference and Benchmark </summary>
+
+
+1. Setup:
+```shell
+export model=l
+pip install -r benchmark/requirements.txt
+```
+
+
 <!-- <summary>5. Inference </summary> -->
-3. Inference (onnxruntime / tensorrt / torch)
+2. Inference (onnxruntime / tensorrt / torch)
 ```shell
 python benchmark/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
 python benchmark/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
@@ -362,13 +376,16 @@ python benchmark/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_
 ```
 
 <!-- <summary>6. Benchmark </summary> -->
-4. Benchmark (Params. / GFLOPs / Latency)
+3. Benchmark (Params. / GFLOPs / Latency)
 ```shell
-pip install -r benchmark/requirements.txt
 python benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
-python benchmark/TRT/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
+python benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
 ```
 
+4. Fiftyone Visualization ([fiftyone](https://github.com/voxel51/fiftyone))
+```shell
+python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+```
 </details>
 
 

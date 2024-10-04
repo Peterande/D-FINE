@@ -43,7 +43,7 @@ def main(args, ):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default= "configs/dfine/dfine_hgnetv2_s_6x_coco.yml", type=str)
+    parser.add_argument('--config', '-c', default= "configs/dfine/dfine_hgnetv2_l_coco.yml", type=str)
     args = parser.parse_args()
 
     main(args)

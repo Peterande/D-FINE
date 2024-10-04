@@ -8,6 +8,9 @@ import torchvision.transforms as T
 import numpy as np 
 from PIL import Image, ImageDraw
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 from src.core import YAMLConfig
 
 

@@ -53,11 +53,13 @@ def main(args, ):
         'images': {0: 'N', },
         'orig_target_sizes': {0: 'N'}
     }
-
+    
+    output_file = args.resume.replace('.pth', '.onnx') if args.resume else 'model.onnx'
+    
     torch.onnx.export(
         model, 
         (data, size), 
-        args.output_file,
+        output_file,
         input_names=['images', 'orig_target_sizes'],
         output_names=['labels', 'boxes', 'scores'],
         dynamic_axes=dynamic_axes,
@@ -68,7 +70,7 @@ def main(args, ):
 
     if args.check:
         import onnx
-        onnx_model = onnx.load(args.output_file)
+        onnx_model = onnx.load(output_file)
         onnx.checker.check_model(onnx_model)
         print('Check export onnx model done...')
 
@@ -78,28 +80,17 @@ def main(args, ):
         dynamic = True 
         # input_shapes = {'images': [1, 3, 640, 640], 'orig_target_sizes': [1, 2]} if dynamic else None
         input_shapes = {'images': data.shape, 'orig_target_sizes': size.shape} if dynamic else None
-        onnx_model_simplify, check = onnxsim.simplify(args.output_file, test_input_shapes=input_shapes)
-        onnx.save(onnx_model_simplify, args.output_file)
+        onnx_model_simplify, check = onnxsim.simplify(output_file, test_input_shapes=input_shapes)
+        onnx.save(onnx_model_simplify, output_file)
         print(f'Simplify onnx model {check}...')
 
 
 if __name__ == '__main__':
     
-    # import argparse
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_l_6x_coco.yml', type=str, )
-    # parser.add_argument('--resume', '-r', default="weight/l/best.pth", type=str, )
-    # parser.add_argument('--output_file', '-o', default='deployment/onnx/model.onnx', type=str)
-    # parser.add_argument('--check',  action='store_true', default=True,)
-    # parser.add_argument('--simplify',  action='store_true', default=True,)
-    # args = parser.parse_args()
-    # main(args)
-
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', default='/home/pengys/code/rtdetrv2_pytorch/configs/dfine/dfine_hgnetv2_m_10x_coco.yml', type=str, )
-    parser.add_argument('--resume', '-r', default="/home/pengys/code/rtdetrv2_pytorch/weight/dfine_m_coco_stage1.pth", type=str, )
-    parser.add_argument('--output_file', '-o', default='deployment/onnx/m.onnx', type=str)
+    parser.add_argument('--config', '-c', default='configs/dfine/dfine_hgnetv2_l_coco.yml', type=str, )
+    parser.add_argument('--resume', '-r', type=str, )
     parser.add_argument('--check',  action='store_true', default=True,)
     parser.add_argument('--simplify',  action='store_true', default=True,)
     args = parser.parse_args()

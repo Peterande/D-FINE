@@ -39,6 +39,8 @@ import fiftyone.core.fields as fof
 from fiftyone import ViewField as F
 import time
 import tqdm
+
+
 label_map = {
     1: 'person', 2: 'bicycle', 3: 'car', 4: 'motorbike', 5: 'aeroplane',
     6: 'bus', 7: 'train', 8: 'truck', 9: 'boat', 10: 'trafficlight',
@@ -298,8 +300,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c', type=str, default= "configs/dfine/dfine_hgnetv2_l_6x_coco.yml")
-    parser.add_argument('--resume', '-r', type=str, default= "weight/l/best.pth")
+    parser.add_argument('--config', '-c', type=str, default= "configs/dfine/dfine_hgnetv2_l_coco.yml")
+    parser.add_argument('--resume', '-r', type=str)
     args = parser.parse_args()
 
     main(args)
