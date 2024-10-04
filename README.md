@@ -345,12 +345,16 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 1. Setup:
 ```shell
 export model=l
-pip install -r tools/requirements.txt
+pip install onnx onnxsim
 ```
 
 2. Export onnx and tensorrt
 ```shell
 python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+```
+
+3. Export [tensorrt](https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html)
+```shell
 trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 ```
 
@@ -382,8 +386,9 @@ python benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
 python benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
 ```
 
-4. Fiftyone Visualization ([fiftyone](https://github.com/voxel51/fiftyone))
+4. Voxel51 Fiftyone Visualization ([fiftyone](https://github.com/voxel51/fiftyone))
 ```shell
+pip install fiftyone
 python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
 </details>
