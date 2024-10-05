@@ -64,11 +64,11 @@ D-FINE redefines the regression task in DETR-based object detectors.
 
 **Unlike traditional methods, our FDR method decomposes the detection box generation process into two key steps:**
 
-1. **Initial Box Prediction**: Similar to conventional methods, an initial bounding box is predicted.
-2. **Fine-grained Distribution Refinement**: Four probability distribution functions corresponding to bounding box edges are iteratively refined. These distributions allow for either minor fine-tuning or substantial adjustments of the initial bounding box.
+1. **Initial Box Prediction**: Similar to conventional methods, initial bounding boxes are predicted.
+2. **Fine-grained Distribution Refinement**: Decoder layers iteratively refine four sets of probability distribution functions. These distributions allow for both precise fine-tuning and larger adjustments to the four edges of the initial bounding box.
 
 ### Key Advantages of FDR:
-1. **Simplified Supervision**: The residual between the predictions and the Ground Truth (GT) is used to optimize these probability distributions. This allows each decoder layer to focus more effectively on solving the specific localization errors it faces at that stage, simplifying the overall optimization.
+1. **Simplified Supervision**: The residual between the predictions and the Ground Truth (GT) is used to optimize these probability distributions. This allows each decoder layer to focus more effectively on solving the specific localization errors it faces at that stage. As the network deepens, the supervision at each layer becomes progressively simpler, simplifying the overall optimization.
 
 2. **Robustness in Complex Scenarios**: The probability distributions inherently represent the confidence level of different "fine-tuning" adjustments for each boundary. This allows the system to independently model the uncertainty of each edge at each stage, enabling it to handle complex real-world scenarios like occlusion, motion blur, and low-light conditions with greater robustness compared to directly regressing four fixed values.
 
@@ -97,6 +97,13 @@ GO-LSD (Global Optimal Localization Self-Distillation) builds upon FDR by enabli
 <p align="center">
     <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD Process" width="777">
 </p>
+
+### Will FDR and GO-LSD increase the inference cost?
+No, FDR has almost no difference in speed, parameter size, or computational complexity compared to the original prediction method, making it a seamless replacement.
+
+### Will FDR and GO-LSD increase the training cost?
+The increased training cost mainly comes from generating the distribution labels. We have optimized this process, keeping the training time increase within 6% and memory consumption within 2%, making the cost almost negligible.
+
 
 ### Visualization of D-FINE Predictions
 
