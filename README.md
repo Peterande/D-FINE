@@ -292,7 +292,7 @@ python tools/remap_obj365.py --base_dir ${BASE_DIR}
 ```
 
 
-6. Run the resize_obj365.py script to resize any images in the dataset where the maximum edge length exceeds 640 pixels. Use the updated JSON file generated in Step 2 to process the sample data. Ensure that you resize images in both the train and val datasets to maintain consistency.
+6. Run the resize_obj365.py script to resize any images in the dataset where the maximum edge length exceeds 640 pixels. Use the updated JSON file generated in Step 5 to process the sample data. Ensure that you resize images in both the train and val datasets to maintain consistency.
 ```shell
 python tools/resize_obj365.py --base_dir ${BASE_DIR}
 ```
@@ -418,7 +418,7 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
 <summary> COCO2017 </summary>
 
 <!-- <summary>1. Training </summary> -->
-1. Set Model:
+1. Set Model
 ```shell
 export model=l
 ```
@@ -445,7 +445,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 <details>
 <summary> Objects to COCO </summary>
 
-1. Set Model:
+1. Set Model
 ```shell
 export model=l
 ```
@@ -471,7 +471,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 <details>
 <summary> Custom dataset </summary>
 
-1. Set Model:
+1. Set Model
 ```shell
 export model=l
 ```
@@ -492,13 +492,13 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 <summary> Deployment </summary>
 
 <!-- <summary>4. Export onnx </summary> -->
-1. Setup:
+1. Setup
 ```shell
 export model=l
 pip install onnx onnxsim
 ```
 
-2. Export onnx and tensorrt
+2. Export onnx
 ```shell
 python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
