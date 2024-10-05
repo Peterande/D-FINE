@@ -83,7 +83,7 @@ D-FINE redefines the regression task in DETR-based object detectors.
 
 <!-- Insert figure explaining FDR process -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="Fine-grained Distribution Refinement Process" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="Fine-grained Distribution Refinement Process" width="666">
 </p>
 
 ## GO-LSD: Extending FDR to Knowledge Distillation
@@ -97,7 +97,7 @@ GO-LSD (Global Optimal Localization Self-Distillation) builds upon FDR by enabli
 
 <!-- Insert figure explaining GO-LSD process -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD Process" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD Process" width="666">
 </p>
 
 ### Will FDR and GO-LSD increase the inference cost?
@@ -113,7 +113,7 @@ The following visualization demonstrates D-FINE's predictions in various complex
 
 <!-- Insert visualization of predictions in challenging scenarios -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE Predictions in Challenging Scenarios" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE Predictions in Challenging Scenarios" width="666">
 </p>
 
 </details>

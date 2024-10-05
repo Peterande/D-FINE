@@ -82,7 +82,7 @@ D-FINE重新定义了基于DETR的目标检测器中的回归任务。
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="精细分布优化过程" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="精细分布优化过程" width="666">
 </p>
 
 ## GO-LSD：将FDR扩展到知识蒸馏
@@ -96,7 +96,7 @@ GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现�
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD过程" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD过程" width="666">
 </p>
 
 ### FDR和GO-LSD会带来更多的推理成本吗？
@@ -111,7 +111,7 @@ GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现�
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE在复杂场景中的预测" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE在复杂场景中的预测" width="666">
 </p>
 
 
