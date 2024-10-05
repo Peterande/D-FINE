@@ -52,11 +52,11 @@
 
 
 ## 🚀 Updates
-- [x] **\[2024.10.3\]** Release D-FINE series.
+- [x] **\[2024.10.3\]** 发布 D-FINE 系列。
 <!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
 
 ## 🔍 探索D-FINE背后的关键创新
-<details open>
+<details>
 <summary> 简介 </summary>
 
 ## D-FINE：重新定义目标检测中的回归任务
