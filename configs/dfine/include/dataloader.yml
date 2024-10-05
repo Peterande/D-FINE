@@ -23,7 +23,7 @@ train_dataloader:
     stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
 
   shuffle: True
-  total_batch_size: 8 # total batch size equals to 16 (4 * 4)
+  total_batch_size: 32 # total batch size equals to 16 (4 * 4)
   num_workers: 4
 
 

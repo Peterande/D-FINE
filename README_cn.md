@@ -53,61 +53,62 @@ Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 - [x] **\[2024.10.3\]** Release D-FINE series.
 <!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
 
-## 🔍 Discover the Key Innovations Behind D-FINE
-English | [简体中文](README_cn.md)
+## 🔍 探索D-FINE背后的关键创新
+[English](README.md) | 简体中文
 <details open>
-<summary> Introduction </summary>
+<summary> 简介 </summary>
 
-## D-FINE: Redefining Regression in Object Detection
+## D-FINE：重新定义目标检测中的回归任务
 
-D-FINE redefines the regression task in DETR-based object detectors. 
+D-FINE重新定义了基于DETR的目标检测器中的回归任务。
 
-**Unlike traditional methods, our FDR method decomposes the detection box generation process into two key steps:**
+**与传统方法不同，我们的FDR方法将检测框的生成过程分解为两个关键步骤：**
 
-1. **Initial Box Prediction**: Similar to conventional methods, an initial bounding box is predicted.
-2. **Fine-grained Distribution Refinement**: Four probability distribution functions corresponding to bounding box edges are iteratively refined. These distributions allow for either minor fine-tuning or substantial adjustments of the initial bounding box.
+1. **初始框预测**：与传统方法类似，首先生成一个初始边界框。
+2. **精细分布优化**：对与边界框边缘对应的四个概率分布函数进行迭代优化。这些分布允许对初始边界框进行细微调节或较大调整。
 
-### Key Advantages of FDR:
-1. **Simplified Supervision**: The residual between the predictions and the Ground Truth (GT) is used to optimize these probability distributions. This allows each decoder layer to focus more effectively on solving the specific localization errors it faces at that stage, simplifying the overall optimization.
+### FDR的主要优势：
+1. **简化的监督**：预测结果与真实值（GT）之间的残差被用于优化这些概率分布。这使每个解码层能够更有效地集中解决其当前面临的特定定位误差，简化了整体优化过程。
 
-2. **Robustness in Complex Scenarios**: The probability distributions inherently represent the confidence level of different "fine-tuning" adjustments for each boundary. This allows the system to independently model the uncertainty of each edge at each stage, enabling it to handle complex real-world scenarios like occlusion, motion blur, and low-light conditions with greater robustness compared to directly regressing four fixed values.
-
-   
-4. **Flexible Refinement Mechanism**: The probability distributions are transformed into final box offsets through a weighted sum. The carefully designed weighting function ensures fine-grained adjustments when the initial box is accurate and larger corrections when necessary.
+2. **复杂场景下的鲁棒性**：这些概率分布本质上代表了对每个边界“微调”的自信程度。这使系统能够独立建模每个边界在各个阶段的不确定性，从而在遮挡、运动模糊和低光照等复杂的实际场景下表现出更强的鲁棒性，相比直接回归四个固定值要更为稳健。
 
    
-6. **Research Potential and Extensibility**: By transforming the regression task into a probability distribution prediction problem, similar to classification tasks, this framework not only improves compatibility with other tasks but also opens up new research opportunities. It provides a unified and flexible foundation for future innovations in areas such as multi-task learning and distribution modeling.
+4. **灵活的优化机制**：概率分布通过加权求和转化为最终的边界框偏移值。精心设计的加权函数确保在初始框准确时进行细微调整，而在必要时则提供较大的修正。
+
+   
+6. **研究潜力与可扩展性**：通过将回归任务转变为类似分类任务的概率分布预测问题，这一框架不仅提高了与其他任务的兼容性，还为未来的研究打开了新的大门。它为多任务学习和分布建模等领域的创新提供了统一且灵活的基础。
 
 
-<!-- Insert figure explaining FDR process -->
+<!-- 插入解释FDR过程的图 -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="Fine-grained Distribution Refinement Process" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="精细分布优化过程" width="777">
 </p>
 
-## GO-LSD: Extending FDR to Knowledge Distillation
+## GO-LSD：将FDR扩展到知识蒸馏
 
-GO-LSD (Global Optimal Localization Self-Distillation) builds upon FDR by enabling localization knowledge distillation across network layers. With the introduction of FDR, the regression task is now a probability distribution prediction, which offers two key benefits:
+GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现定位知识蒸馏，进一步扩展了FDR的能力。随着FDR的引入，回归任务现在变成了概率分布预测，这带来了两个主要优势：
 
-1. **Knowledge Transfer**: Probability distributions naturally carry localization knowledge, which can be distilled from deeper layers to earlier layers through computing KLD loss. This is something that traditional fixed box representations (Dirac delta functions) cannot achieve.
+1. **知识传递**：概率分布天然携带定位知识，可以通过计算KLD损失从深层传递到浅层。这是传统固定框表示（狄拉克δ函数）无法实现的。
    
-3. **Consistent Optimization Goals**: Since each layer shares a common goal — reducing the residual between the initial bounding box and the ground truth box — the refined probability distributions from the final layer can be used to guide earlier layers through distillation. This creates a synergistic effect: as training progresses, the final layer's predictions become more accurate, and the soft labels it generates help earlier layers improve their predictions. In turn, the earlier layers learn to localize more quickly, simplifying the optimization tasks of the deeper layers, and leading to further improvements in overall accuracy.
+3. **一致的优化目标**：由于每一层都共享一个共同目标——减少初始边界框与真实边界框之间的残差——因此最后一层生成的精确概率分布可以通过蒸馏引导前几层。这产生了一种双赢的协同效应：随着训练的进行，最后一层的预测变得越来越准确，其生成的软标签帮助前几层提高预测准确性。反过来，前几层学会更快地定位到准确位置，简化了深层的优化任务，进一步提高了整体准确性。
 
 
-<!-- Insert figure explaining GO-LSD process -->
+<!-- 插入解释GO-LSD过程的图 -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD Process" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD过程" width="777">
 </p>
 
-### Visualization of D-FINE Predictions
+### D-FINE预测的可视化
 
-The following visualization demonstrates D-FINE's predictions in various complex detection scenarios. These include cases with occlusion, low-light conditions, motion blur, depth of field effects, and densely populated scenes. Despite these challenges, D-FINE consistently produces accurate localization results.
+以下可视化展示了D-FINE在各种复杂检测场景中的预测结果。这些场景包括遮挡、低光照、运动模糊、景深效果和密集场景。尽管面对这些挑战，D-FINE依然能够产生准确的定位结果。
 
-<!-- Insert visualization of predictions in challenging scenarios -->
+<!-- 插入复杂场景中的预测可视化图 -->
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE Predictions in Challenging Scenarios" width="777">
+    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE在复杂场景中的预测" width="777">
 </p>
 
 </details>
+
 
 ## Model Zoo
 
