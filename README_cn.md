@@ -117,9 +117,9 @@ GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现�
 
 </details>
 
-## Model Zoo
+## 模型库
 
-### 模型库
+### 基础模型
 | 模型 | 数据集 | AP<sup>val</sup> | 参数量 | FPS | GFLOPs | 配置 | 检查点 | 日志 |
 | :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
 **D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [config](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.5](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_s_coco.pth) |
