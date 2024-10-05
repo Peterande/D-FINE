@@ -1,5 +1,5 @@
 <!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
-English | [简体中文](README_cn.md)
+[English](README.md) | 简体中文
 
 <h2 align="center">
   D-FINE: Redefine Regression Task of DETRs as Fine&#8209;grained&nbsp;Distribution&nbsp;Refinement
@@ -55,71 +55,9 @@ Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 - [x] **\[2024.10.3\]** Release D-FINE series.
 <!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
 
-## 🔍 Discover the Key Innovations Behind D-FINE
-
-<details>
-<summary> Introduction </summary>
-
-## D-FINE: Redefining Regression in Object Detection
-
-D-FINE redefines the regression task in DETR-based object detectors. 
-
-**Unlike traditional methods, our FDR method decomposes the detection box generation process into two key steps:**
-
-1. **Initial Box Prediction**: Similar to conventional methods, initial bounding boxes are predicted.
-2. **Fine-grained Distribution Refinement**: Decoder layers iteratively refine four sets of probability distribution functions. These distributions allow for both precise fine-tuning and larger adjustments to the four edges of the initial bounding box.
-
-### Key Advantages of FDR:
-1. **Simplified Supervision**: The residual between the predictions and the Ground Truth (GT) is used to optimize these probability distributions. This allows each decoder layer to focus more effectively on solving the specific localization errors it faces at that stage. As the network deepens, the supervision at each layer becomes progressively simpler, simplifying the overall optimization.
-
-2. **Robustness in Complex Scenarios**: The probability distributions inherently represent the confidence level of different "fine-tuning" adjustments for each boundary. This allows the system to independently model the uncertainty of each edge at each stage, enabling it to handle complex real-world scenarios like occlusion, motion blur, and low-light conditions with greater robustness compared to directly regressing four fixed values.
-
-   
-4. **Flexible Refinement Mechanism**: The probability distributions are transformed into final box offsets through a weighted sum. The carefully designed weighting function ensures fine-grained adjustments when the initial box is accurate and larger corrections when necessary.
-
-   
-6. **Research Potential and Extensibility**: By transforming the regression task into a probability distribution prediction problem, similar to classification tasks, this framework not only improves compatibility with other tasks but also opens up new research opportunities. It provides a unified and flexible foundation for future innovations in areas such as multi-task learning and distribution modeling.
-
-
-<!-- Insert figure explaining FDR process -->
-<p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="Fine-grained Distribution Refinement Process" width="777">
-</p>
-
-## GO-LSD: Extending FDR to Knowledge Distillation
-
-GO-LSD (Global Optimal Localization Self-Distillation) builds upon FDR by enabling localization knowledge distillation across network layers. With the introduction of FDR, the regression task is now a probability distribution prediction, which offers two key benefits:
-
-1. **Knowledge Transfer**: Probability distributions naturally carry localization knowledge, which can be distilled from deeper layers to earlier layers through computing KLD loss. This is something that traditional fixed box representations (Dirac delta functions) cannot achieve.
-   
-3. **Consistent Optimization Goals**: Since each layer shares a common goal — reducing the residual between the initial bounding box and the ground truth box — the refined probability distributions from the final layer can be used to guide earlier layers through distillation. This creates a synergistic effect: as training progresses, the final layer's predictions become more accurate, and the soft labels it generates help earlier layers improve their predictions. In turn, the earlier layers learn to localize more quickly, simplifying the optimization tasks of the deeper layers, and leading to further improvements in overall accuracy.
-
-
-<!-- Insert figure explaining GO-LSD process -->
-<p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD Process" width="777">
-</p>
-
-### Will FDR and GO-LSD increase the inference cost?
-No, FDR has almost no difference in speed, parameter size, or computational complexity compared to the original prediction method, making it a seamless replacement.
-
-### Will FDR and GO-LSD increase the training cost?
-The increased training cost mainly comes from generating the distribution labels. We have optimized this process, keeping the training time increase within 6% and memory consumption within 2%, making the cost almost negligible.
-
-
-### Visualization of D-FINE Predictions
-
-The following visualization demonstrates D-FINE's predictions in various complex detection scenarios. These include cases with occlusion, low-light conditions, motion blur, depth of field effects, and densely populated scenes. Despite these challenges, D-FINE consistently produces accurate localization results.
-
-<!-- Insert visualization of predictions in challenging scenarios -->
-<p align="center">
-    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE Predictions in Challenging Scenarios" width="777">
-</p>
-
-</details>
-
-<!-- <details>
-<summary> 简介 (简体中文) </summary>
+## 🔍 探索D-FINE背后的关键创新
+<details open>
+<summary> 简介 </summary>
 
 ## D-FINE：重新定义目标检测中的回归任务
 
@@ -177,7 +115,7 @@ GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现�
 </p>
 
 
-</details> -->
+</details>
 
 ## Model Zoo
 
