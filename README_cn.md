@@ -146,7 +146,7 @@ These ckpts offering better generalization.
 ## 快速开始
 
 <details open>
-<summary> Setup </summary>
+<summary> 设置 </summary>
   
 ```shell
 
