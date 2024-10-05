@@ -116,7 +116,7 @@ The following visualization demonstrates D-FINE's predictions in various complex
 
 </details>
 
-<details>
+<!-- <details>
 <summary> 简介 (简体中文) </summary>
 
 ## D-FINE：重新定义目标检测中的回归任务
@@ -175,7 +175,7 @@ GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现�
 </p>
 
 
-</details>
+</details> -->
 
 ## Model Zoo
 
