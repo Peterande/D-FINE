@@ -30,14 +30,14 @@
 </p>
 
 <p align="center">
-    📄 This is the official implementation of the paper:
+    📄 这是该文章的官方实现:
     <br>
     <a href="https://arxiv.org/abs/xxxxxx">D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement</a>
 </p>
 
 
 <p align="center">
-Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
+彭岩松，李和倍，吴沛熹，张越一，孙晓艳，吴枫
 </p>
 
 <!-- <table><tr>
