@@ -54,8 +54,8 @@ Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 <!-- - 🔜 **\[Next\]** Release D-FINE series pretrained on Objects365. -->
 
 ## 🔍 Discover the Key Innovations Behind D-FINE
-English | [简体中文](README_cn.md)
-<details open>
+
+<details>
 <summary> Introduction </summary>
 
 ## D-FINE: Redefining Regression in Object Detection
@@ -113,6 +113,66 @@ The following visualization demonstrates D-FINE's predictions in various complex
 <p align="center">
     <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE Predictions in Challenging Scenarios" width="777">
 </p>
+
+</details>
+
+<details>
+<summary> 简介 (简体中文) </summary>
+
+## D-FINE：重新定义目标检测中的回归任务
+
+D-FINE重新定义了基于DETR的目标检测器中的回归任务。
+
+**与传统方法不同，我们的FDR方法将检测框的生成过程分解为两个关键步骤：**
+
+1. **初始框预测**：与传统方法类似，首先生成初始边界框。
+2. **精细分布优化**：模型解码层迭代地对四组概率分布函数进行逐层迭代优化。通过这些分布对初始边界框地上下左右边缘进行细微调节或较大调整。
+
+### FDR的主要优势：
+1. **简化的监督**：在优化最终框的同时，可以用标签和预测结果之间的残差作为这些概率分布函数的优化目标。这使每个解码层能够更有效地集中解决其当前面临的特定定位误差，随着层数加深，其监督也变得越来越简单，从而简化了整体优化过程。
+
+2. **复杂场景下的鲁棒性**：这些概率分布本质上代表了对每个边界“微调”的自信程度。这使系统能够独立建模每个边界在各个阶段的不确定性，从而在遮挡、运动模糊和低光照等复杂的实际场景下表现出更强的鲁棒性，相比直接回归四个固定值要更为稳健。
+
+   
+4. **灵活的优化机制**：概率分布通过加权求和转化为最终的边界框偏移值。精心设计的加权函数确保在初始框准确时进行细微调整，而在必要时则提供较大的修正。
+
+   
+6. **研究潜力与可扩展性**：通过将回归任务转变为类似分类任务的概率分布预测问题，这一框架不仅提高了与其他任务的兼容性，它还使得目标检测模型可以受益于知识蒸馏、多任务学习和分布建模等更多领域的创新，为未来的研究打开了新的大门。
+
+
+<!-- 插入解释FDR过程的图 -->
+<p align="center">
+    <img src="https://github.com/Peterande/storage/blob/main/fdr.png" alt="精细分布优化过程" width="777">
+</p>
+
+## GO-LSD：将FDR扩展到知识蒸馏
+
+GO-LSD（全局最优定位自蒸馏）基于FDR，通过在网络层间实现定位知识蒸馏，进一步扩展了FDR的能力。随着FDR的引入，回归任务现在变成了概率分布预测，这带来了两个主要优势：
+
+1. **知识传递**：概率分布天然携带定位知识，可以通过计算KLD损失从深层传递到浅层。这是传统固定框表示（狄拉克δ函数）无法实现的。
+   
+3. **一致的优化目标**：由于每一层都共享一个共同目标：减少初始边界框与真实边界框之间的残差；因此最后一层生成的精确概率分布可以通过蒸馏引导前几层。这产生了一种双赢的协同效应：随着训练的进行，最后一层的预测变得越来越准确，其生成的软标签更好地帮助前几层提高预测准确性。反过来，前几层学会更快地定位到准确位置，简化了深层的优化任务，进一步提高了整体准确性。
+
+
+<!-- 插入解释GO-LSD过程的图 -->
+<p align="center">
+    <img src="https://github.com/Peterande/storage/blob/main/go_lsd.png" alt="GO-LSD过程" width="777">
+</p>
+
+### D-FINE预测的可视化
+
+以下可视化展示了D-FINE在各种复杂检测场景中的预测结果。这些场景包括遮挡、低光照、运动模糊、景深效果和密集场景。尽管面对这些挑战，D-FINE依然能够产生准确的定位结果。
+
+<!-- 插入复杂场景中的预测可视化图 -->
+<p align="center">
+    <img src="https://github.com/Peterande/storage/blob/main/hard_case.png" alt="D-FINE在复杂场景中的预测" width="777">
+</p>
+
+### FDR和GO-LSD会带来更多的推理成本吗？
+并不会，FDR和原始的预测几乎没有在速度、参数量和计算复杂度上的任何区别，完全是无感替换。
+
+### FDR和GO-LSD会带来更多的训练成本吗？
+训练成本的增加主要来源于如何生成分布的标签。我们已经对该过程进行了优化，将训练时长和显存占用控制在了6%和2%，几乎无感。
 
 </details>
 
