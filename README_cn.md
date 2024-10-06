@@ -389,42 +389,62 @@ python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco
 trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 ```
 
-</details>
+
 
 <details>
-<summary> 推理 / 基准测试 / 可视化 </summary>
+<summary> 推理 </summary>
 
 
 1. 设置
 ```shell
 export model=l
-pip install -r benchmark/requirements.txt
+pip install -r tools/inference/requirements.txt
 ```
 
 
 <!-- <summary>5. Inference </summary> -->
 2. 推理 (onnxruntime / tensorrt / torch)
 ```shell
-python benchmark/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
-python benchmark/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
-python benchmark/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --im-file image.jpg --device cuda:0
-```
-
-<!-- <summary>6. Benchmark </summary> -->
-3. 基准测试 (参数量 / GFLOPs / 延迟)
-```shell
-python benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
-python benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
-```
-
-4. Voxel51 Fiftyone 可视化 ([fiftyone](https://github.com/voxel51/fiftyone))
-```shell
-pip install fiftyone
-python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+python tools/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
+python tools/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
+python tools/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --im-file image.jpg --device cuda:0
 ```
 </details>
 
+<details>
+<summary> 基准测试  </summary>
 
+1. 设置
+```shell
+export model=l
+pip install -r tools/benchmark/requirements.txt
+```
+
+<!-- <summary>6. Benchmark </summary> -->
+2. 模型 FLOPs、MACs、参数量
+```shell
+python tools/benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
+```
+
+2. TensorRT 延迟
+```shell
+python tools/benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
+```
+</details>
+
+<details>
+<summary> Voxel51 Fiftyone 可视化  </summary>
+
+1. 设置
+```shell
+export model=l
+pip install fiftyone
+```
+4. Voxel51 Fiftyone 可视化 ([fiftyone](https://github.com/voxel51/fiftyone))
+```shell
+python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+```
+</details>
 
 ## Citation
 如果您在工作中使用了 `D-FINE`，请使用以下 BibTeX 条目：

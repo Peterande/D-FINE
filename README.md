@@ -91,9 +91,15 @@ pip install -r requirements.txt
 </details>
 
 
+
+
+
 <details>
-  
-<summary> COCO2017 dataset </summary>
+<summary> Data Preparation </summary>
+
+
+<details>
+<summary> COCO2017 Dataset </summary>
 
 1. Download COCO2017 from [OpenDataLab](https://opendatalab.com/OpenDataLab/COCO_2017). 
 1. Modify paths in [coco_detection.yml](./configs/dataset/coco_detection.yml)
@@ -110,7 +116,7 @@ pip install -r requirements.txt
 </details>
 
 <details>
-<summary> Objects365 dataset </summary>
+<summary> Objects365 Dataset </summary>
 
 1. Download Objects365 from [OpenDataLab](https://opendatalab.com/OpenDataLab/Objects365). 
 
@@ -189,7 +195,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 </details>
 
 <details>
-<summary>Custom dataset</summary>
+<summary>Custom Dataset</summary>
 
 To train on your custom dataset, you need to organize it in the COCO format. Follow the steps below to prepare your dataset:
 
@@ -289,6 +295,7 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
     ```
 
 </details>
+</details>
 
 ## Usage
 <details>
@@ -320,7 +327,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 
 
 <details>
-<summary> Objects to COCO </summary>
+<summary> Objects365 to COCO2017 </summary>
 
 1. Set Model
 ```shell
@@ -346,14 +353,14 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 
 
 <details>
-<summary> Custom dataset </summary>
+<summary> Custom Dataset </summary>
 
 1. Set Model
 ```shell
 export model=l
 ```
 
-2. Training on Custom dataset
+2. Training on Custom Dataset
 ```shell
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train.py -c configs/dfine/custom/dfine_hgnetv2_${model}_custom.yml --use-amp --seed=0
 ```
@@ -364,7 +371,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 ```
 </details>
 
-
+## Tools
 <details>
 <summary> Deployment </summary>
 
@@ -377,7 +384,7 @@ pip install onnx onnxsim
 
 2. Export onnx
 ```shell
-python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+python tools/deployment/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
 
 3. Export [tensorrt](https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html)
@@ -388,35 +395,57 @@ trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 </details>
 
 <details>
-<summary> Inference / Benchmark / Visualization </summary>
+<summary> Inference </summary>
 
 
 1. Setup
 ```shell
 export model=l
-pip install -r benchmark/requirements.txt
+pip install -r tools/inference/requirements.txt
 ```
 
 
 <!-- <summary>5. Inference </summary> -->
 2. Inference (onnxruntime / tensorrt / torch)
 ```shell
-python benchmark/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
-python benchmark/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
-python benchmark/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --im-file image.jpg --device cuda:0
+python tools/inference/onnx_inf.py --onnx-file model.onnx --im-file image.jpg
+python tools/inference/trt_inf.py --trt-file model.trt --im-file image.jpg
+python tools/inference/torch_inf.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth --im-file image.jpg --device cuda:0
+```
+</details>
+
+<details>
+<summary> Benchmark </summary>
+
+1. Setup
+```shell
+export model=l
+pip install -r tools/benchmark/requirements.txt
 ```
 
 <!-- <summary>6. Benchmark </summary> -->
-3. Benchmark (Params. / GFLOPs / Latency)
+2. Model FLOPs, MACs, and Params
 ```shell
-python benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
-python benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
+python tools/benchmark/get_info.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml
 ```
 
+2. TensorRT Latency
+```shell
+python tools/benchmark/trt_benchmark.py --COCO_dir path/to/COCO2017 --engine_dir model.engine
+```
+</details>
+
+<details>
+<summary> Fiftyone Visualization  </summary>
+
+1. Setup
+```shell
+export model=l
+pip install fiftyone
+```
 4. Voxel51 Fiftyone Visualization ([fiftyone](https://github.com/voxel51/fiftyone))
 ```shell
-pip install fiftyone
-python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
+python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
 </details>
 
