@@ -492,7 +492,7 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 
 
 ## Citation
-If you use `D-FINE` in your work, please cite the following BibTeX entries:
+If you use `D-FINE` or its methods in your work, please cite the following BibTeX entries:
 <details open>
 <summary> bibtex </summary>
 

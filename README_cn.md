@@ -494,7 +494,7 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 </details>
 
 ## 引用
-如果你在工作中使用了 `D-FINE`，请引用以下 BibTeX 条目：
+如果你在工作中使用了 `D-FINE` 或其方法，请引用以下 BibTeX 条目：
 <details open>
 <summary> bibtex </summary>
 
