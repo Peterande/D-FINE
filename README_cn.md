@@ -95,6 +95,11 @@ pip install -r requirements.txt
 </details>
 
 
+
+<details>
+<summary> 数据集准备 </summary>
+
+
 <details>
   
 <summary> COCO2017 数据集 </summary>
@@ -291,7 +296,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
       collate_fn:
         type: BatchImageCollateFuncion
     ```
-
+</details>
 </details>
 
 ## 使用方法
@@ -389,7 +394,7 @@ python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco
 trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 ```
 
-
+</details>
 
 <details>
 <summary> 推理 </summary>
