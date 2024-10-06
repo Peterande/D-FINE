@@ -452,8 +452,8 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 ```
 </details>
 
-## Citation
-如果您在工作中使用了 `D-FINE`，请使用以下 BibTeX 条目：
+## 引用
+如果您在工作中使用了 `D-FINE`，请引用以下 BibTeX 条目：
 <details open>
 <summary> bibtex </summary>
 
