@@ -486,7 +486,7 @@ python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r mod
 
 ## Citation
 如果您在工作中使用了 `D-FINE`，请使用以下 BibTeX 条目：
-
+<details open>
 <summary> bibtex </summary>
 
 ```latex

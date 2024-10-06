@@ -550,7 +550,7 @@ python tools/fiftyone.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r mod
 
 ## Citation
 If you use `D-FINE` in your work, please use the following BibTeX entries:
-
+<details open>
 <summary> bibtex </summary>
 
 ```latex
