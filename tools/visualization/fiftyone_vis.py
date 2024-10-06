@@ -22,7 +22,7 @@ def kill_existing_mongod():
 kill_existing_mongod()
 
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
 
 import argparse
 
@@ -250,15 +250,14 @@ def main(args):
             predictions_view = dataset.take(5000, seed=51)
 
             # Apply models and save predictions in different label fields
-            for i in [0, 5]:
+            for i in [5]:
                 model = CustomModel(cfg)
                 model.model.decoder.decoder.eval_idx = i
                 label_field = "predictions{:d}".format(i)
                 predictions_view.apply_model(model, label_field=label_field)
 
-            # 过滤
-            filter_by_predictions5_confidence(predictions_view, confidence_threshold=0.3)
-            for i in [0, 5]:
+            # filter_by_predictions5_confidence(predictions_view, confidence_threshold=0.3)
+            for i in [5]:
                 label_field = "predictions{:d}".format(i)
                 predictions_view = predictions_view.filter_labels(label_field, F("confidence") > 0.3, only_matches=False)
                 eval_key = "eval{:d}".format(i)
@@ -269,11 +268,11 @@ def main(args):
                     compute_mAP=True,
                 )
             
-            assign_iou_diff(predictions_view)
+            # assign_iou_diff(predictions_view)
 
-            filtered_view = predictions_view.filter_labels("predictions0", F("iou_diff") > 0.05, only_matches=True)
-            filtered_view = filtered_view.filter_labels("predictions5", F("iou_diff") > 0.05, only_matches=True)
-            restore_confidence(filtered_view)
+            # filtered_view = predictions_view.filter_labels("predictions0", F("iou_diff") > 0.05, only_matches=True)
+            # filtered_view = filtered_view.filter_labels("predictions5", F("iou_diff") > 0.05, only_matches=True)
+            # restore_confidence(filtered_view)
 
             predictions_view.export(
                 export_dir="saved_predictions_view",
