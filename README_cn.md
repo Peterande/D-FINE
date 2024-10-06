@@ -200,7 +200,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 <details>
 <summary>自定义数据集</summary>
 
-要在您的自定义数据集上训练，您需要将其组织为 COCO 格式。请按照以下步骤准备您的数据集：
+要在你的自定义数据集上训练，你需要将其组织为 COCO 格式。请按照以下步骤准备你的数据集：
 
 1. **将 `remap_mscoco_category` 设置为 `False`:**
 
@@ -212,7 +212,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 2. **组织图像：**
 
-    按以下结构组织您的数据集目录：
+    按以下结构组织你的数据集目录：
 
     ```shell
     dataset/
@@ -237,7 +237,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 3. **将注释转换为 COCO 格式：**
 
-    如果您的注释尚未为 COCO 格式，您需要进行转换。您可以参考以下 Python 脚本或使用现有工具：
+    如果你的注释尚未为 COCO 格式，你需要进行转换。你可以参考以下 Python 脚本或使用现有工具：
 
     ```python
     import json
@@ -252,7 +252,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
 
 4. **更新配置文件：**
 
-    修改您的 [custom_detection.yml](./configs/dataset/custom_detection.yml)。
+    修改你的 [custom_detection.yml](./configs/dataset/custom_detection.yml)。
 
     ```yaml
     task: detection
@@ -373,6 +373,47 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 ```
 </details>
 
+<details>
+<summary> 自定义批次大小 </summary>
+
+例如，如果你想在训练 D-FINE-L 时将 COCO2017 的总批次大小增加一倍，请按照以下步骤操作：
+
+1. **修改你的 [dataloader.yml](./configs/dfine/include/dataloader.yml)**，增加 `total_batch_size`：
+
+    ```yaml
+    train_dataloader: 
+        total_batch_size: 64  # 原来是 32，现在增加了一倍
+    ```
+
+2. **修改你的 [dfine_hgnetv2_l_coco.yml](./configs/dfine/dfine_hgnetv2_l_coco.yml)**。
+
+    ```yaml
+    optimizer:
+    type: AdamW
+    params: 
+        - 
+        params: '^(?=.*backbone)(?!.*norm|bn).*$'
+        lr: 0.000025  # 翻倍，线性缩放原则
+        - 
+        params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+        weight_decay: 0.
+
+    lr: 0.0005  # 翻倍，线性缩放原则
+    betas: [0.9, 0.999]
+    weight_decay: 0.0000625  # 减半，但可能需要网格搜索找到最优值
+
+    ema:  # 添加 EMA 设置
+        decay: 0.9998  # 根据 1 - (1 - decay) * 2 调整
+        warmups: 500  # 减半
+
+    lr_warmup_scheduler:
+        warmup_duration: 250  # 减半
+    ```
+
+</details>
+
+
+
 ## 工具
 
 <details>
@@ -453,7 +494,7 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 </details>
 
 ## 引用
-如果您在工作中使用了 `D-FINE`，请引用以下 BibTeX 条目：
+如果你在工作中使用了 `D-FINE`，请引用以下 BibTeX 条目：
 <details open>
 <summary> bibtex </summary>
 

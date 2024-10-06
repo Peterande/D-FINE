@@ -371,6 +371,46 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --master_port=777 --nproc_per_node=4 train
 ```
 </details>
 
+<details>
+<summary> Customizing Batch Size </summary>
+
+For example, if you want to double the total batch size when training D-FINE-L on COCO2017, here are the steps you should follow:
+
+1. **Modify your [dataloader.yml](./configs/dfine/include/dataloader.yml)** to increase the `total_batch_size`:
+
+    ```yaml
+    train_dataloader: 
+        total_batch_size: 64  # Previously it was 32, now doubled
+    ```
+
+2. **Modify your [dfine_hgnetv2_l_coco.yml](./configs/dfine/dfine_hgnetv2_l_coco.yml)**. Here’s how the key parameters should be adjusted:
+
+    ```yaml
+    optimizer:
+    type: AdamW
+    params: 
+        - 
+        params: '^(?=.*backbone)(?!.*norm|bn).*$'
+        lr: 0.000025  # doubled, linear scaling law
+        - 
+        params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+        weight_decay: 0.
+
+    lr: 0.0005  # doubled, linear scaling law
+    betas: [0.9, 0.999]
+    weight_decay: 0.0000625  # halved, probably need a grid search
+
+    ema:  # added EMA settings
+        decay: 0.9998  # adjusted by 1 - (1 - decay) * 2
+        warmups: 500  # halved
+
+    lr_warmup_scheduler:
+        warmup_duration: 250  # halved
+    ```
+
+</details>
+
+
 ## Tools
 <details>
 <summary> Deployment </summary>
