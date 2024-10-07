@@ -97,7 +97,7 @@ pip install -r requirements.txt
 
 
 <details>
-<summary> 数据集准备 </summary>
+<summary> 数据集准备 (COCO2017 / Objects365 / 自定义数据集) </summary>
 
 
 <details>

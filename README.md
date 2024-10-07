@@ -99,7 +99,7 @@ pip install -r requirements.txt
 
 
 <details>
-<summary> Data Preparation </summary>
+<summary> Data Preparation (COCO2017 / Objects365 / Custom Dataset) </summary>
 
 
 <details>
