@@ -84,8 +84,7 @@ These ckpts offering better generalization.
 
 ## 快速开始
 
-<details open>
-<summary> 设置 </summary>
+### 设置
   
 ```shell
 
@@ -96,8 +95,7 @@ pip install -r requirements.txt
 
 
 
-<details>
-<summary> 数据集准备 (COCO2017 / Objects365 / 自定义数据集) </summary>
+### 数据集准备
 
 
 <details>
@@ -298,7 +296,7 @@ python tools/resize_obj365.py --base_dir ${BASE_DIR}
         type: BatchImageCollateFuncion
     ```
 </details>
-</details>
+
 
 ## 使用方法
 <details>

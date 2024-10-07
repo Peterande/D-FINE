@@ -84,23 +84,20 @@ These ckpts offering better generalization.
 
 ## Quick start
 
-<details open>
-<summary> Setup </summary>
-  
+### Setup
+
 ```shell
 
 pip install -r requirements.txt
 ```
 
-</details>
 
 
 
 
 
-<details>
-<summary> Data Preparation (COCO2017 / Objects365 / Custom Dataset) </summary>
 
+### Data Preparation
 
 <details>
 <summary> COCO2017 Dataset </summary>
@@ -298,7 +295,7 @@ To train on your custom dataset, you need to organize it in the COCO format. Fol
     ```
 
 </details>
-</details>
+
 
 ## Usage
 <details>
