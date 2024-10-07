@@ -1,8 +1,11 @@
 """
-Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-https://github.com/facebookresearch/detr/blob/main/engine.py
+D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement
 Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+---------------------------------------------------------------------------------
+Modified from DETR (https://github.com/facebookresearch/detr/blob/main/engine.py)
+Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 """
+
 
 import sys
 import math

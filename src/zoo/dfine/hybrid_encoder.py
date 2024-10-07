@@ -1,6 +1,9 @@
 """
-Copyright(c) 2023 lyuwenyu. All Rights Reserved.
-Modifications Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement
+Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
+---------------------------------------------------------------------------------
+Modified from RT-DETR (https://github.com/lyuwenyu/RT-DETR)
+Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import copy
