@@ -6,9 +6,6 @@
 </h2>
 
 <p align="center">
-    <!-- <a href="https://github.com/lyuwenyu/RT-DETR/blob/main/LICENSE">
-        <img alt="license" src="https://img.shields.io/badge/LICENSE-Apache%202.0-blue">
-    </a> -->
     <a href="https://github.com/Peterande/D-FINE/blob/master/LICENSE">
         <img alt="license" src="https://img.shields.io/github/license/Peterande/D-FINE">
     </a>
@@ -40,6 +37,9 @@
 彭岩松，李和倍，吴沛熹，张越一，孙晓艳，吴枫
 </p>
 
+<p align="center">
+中国科学技术大学
+</p>
 <!-- <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
 <td><img src=https://github.com/Peterande/storage/blob/main/params.png border=0 width=333></td>

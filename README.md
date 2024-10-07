@@ -40,6 +40,10 @@ English | [简体中文](README_cn.md) | [blog](src/zoo/dfine/blog.md)
 Yansong Peng, Hebei Li, Peixi Wu, Yueyi Zhang, Xiaoyan Sun, and Feng Wu
 </p>
 
+<p align="center">
+University of Science and Technology of China
+</p>
+
 <!-- <table><tr>
 <td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
 <td><img src=https://github.com/Peterande/storage/blob/main/params.png border=0 width=333></td>
