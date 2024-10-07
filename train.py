@@ -30,11 +30,17 @@ def main(args, ) -> None:
     assert not all([args.tuning, args.resume]), \
         'Only support from_scrach or resume or tuning at one time'
 
+        
     update_dict = yaml_utils.parse_cli(args.update)
     update_dict.update({k: v for k, v in args.__dict__.items() \
         if k not in ['update', ] and v is not None})
 
     cfg = YAMLConfig(args.config, **update_dict)
+    
+    if args.resume or args.tuning:
+        if 'HGNetv2' in cfg.yaml_cfg:
+            cfg.yaml_cfg['HGNetv2']['pretrained'] = False
+
     print('cfg: ', cfg.__dict__)
 
     solver = TASKS[cfg.yaml_cfg['task']](cfg)

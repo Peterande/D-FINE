@@ -496,9 +496,7 @@ class HGNetv2(nn.Module):
                 self.load_state_dict(state)
 
             except Exception as e:
-                RED = "\033[91m"
-                GREEN = "\033[92m"
-                RESET = "\033[0m" 
+                RED, GREEN, RESET = "\033[91m", "\033[92m", "\033[0m" 
                 def wait_for_confirmation():
                     confirmation = input(GREEN + 
                     "If you are resuming or tuning and wish to continue without loading the pretrained backbone, input 'yes'. \n"
