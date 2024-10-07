@@ -128,22 +128,10 @@ pip install -r requirements.txt
 export BASE_DIR=/data/Objects365/data
 ```
 
-3. 创建一个新目录来存储验证集中的图像：
-```shell
-mkdir -p ${BASE_DIR}/train/images_from_val
-```
-
-3. 将 val 目录中的 v1 和 v2 文件夹复制到 train/images_from_val 目录中
-```shell
-cp -r ${BASE_DIR}/val/images/v1 ${BASE_DIR}/train/images_from_val/
-cp -r ${BASE_DIR}/val/images/v2 ${BASE_DIR}/train/images_from_val/
-```
-
-4. 复制后的目录结构应该如下所示：
+3. 解压并整理目录结构如下：
 
 ```shell
 ${BASE_DIR}/train
-├── images_from_val
 ├── images
 │   ├── v1
 │   │   ├── patch0
@@ -172,18 +160,31 @@ ${BASE_DIR}/val
 ├── zhiyuan_objv2_val.json
 ```
 
-5. 运行 remap_obj365.py 将验证集中的部分样本合并到训练集中。具体来说，该脚本将索引在 5000 到 800000 之间的样本从验证集移动到训练集。
+
+4. 创建一个新目录来存储验证集中的图像：
+```shell
+mkdir -p ${BASE_DIR}/train/images_from_val
+```
+
+5. 将 val 目录中的 v1 和 v2 文件夹复制到 train/images_from_val 目录中
+```shell
+cp -r ${BASE_DIR}/val/images/v1 ${BASE_DIR}/train/images_from_val/
+cp -r ${BASE_DIR}/val/images/v2 ${BASE_DIR}/train/images_from_val/
+```
+
+
+6. 运行 remap_obj365.py 将验证集中的部分样本合并到训练集中。具体来说，该脚本将索引在 5000 到 800000 之间的样本从验证集移动到训练集。
 ```shell
 python tools/remap_obj365.py --base_dir ${BASE_DIR}
 ```
 
 
-6. 运行 resize_obj365.py 脚本，将数据集中任何最大边长超过 640 像素的图像进行大小调整。使用步骤 5 中生成的更新后的 JSON 文件处理样本数据。
+7. 运行 resize_obj365.py 脚本，将数据集中任何最大边长超过 640 像素的图像进行大小调整。使用步骤 5 中生成的更新后的 JSON 文件处理样本数据。
 ```shell
 python tools/resize_obj365.py --base_dir ${BASE_DIR}
 ```
 
-7. 修改 [obj365_detection.yml](./configs/dataset/obj365_detection.yml) 中的路径。
+8. 修改 [obj365_detection.yml](./configs/dataset/obj365_detection.yml) 中的路径。
 
     ```yaml
     train_dataloader: 

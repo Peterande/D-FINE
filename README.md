@@ -129,22 +129,10 @@ pip install -r requirements.txt
 export BASE_DIR=/data/Objects365/data
 ```
 
-3. Create a New Directory to Store Images from the Validation Set:
-```shell
-mkdir -p ${BASE_DIR}/train/images_from_val
-```
-
-3. Copy the v1 and v2 folders from the val directory into the train/images_from_val directory
-```shell
-cp -r ${BASE_DIR}/val/images/v1 ${BASE_DIR}/train/images_from_val/
-cp -r ${BASE_DIR}/val/images/v2 ${BASE_DIR}/train/images_from_val/
-```
-
-4. Directory structure after copying:
+3. Extract and organize the downloaded files, resulting directory structure:
 
 ```shell
 ${BASE_DIR}/train
-├── images_from_val
 ├── images
 │   ├── v1
 │   │   ├── patch0
@@ -173,18 +161,29 @@ ${BASE_DIR}/val
 ├── zhiyuan_objv2_val.json
 ```
 
-5. Run remap_obj365.py to merge a subset of the validation set into the training set. Specifically, this script moves samples with indices between 5000 and 800000 from the validation set to the training set.
+4. Create a New Directory to Store Images from the Validation Set:
+```shell
+mkdir -p ${BASE_DIR}/train/images_from_val
+```
+
+5. Copy the v1 and v2 folders from the val directory into the train/images_from_val directory
+```shell
+cp -r ${BASE_DIR}/val/images/v1 ${BASE_DIR}/train/images_from_val/
+cp -r ${BASE_DIR}/val/images/v2 ${BASE_DIR}/train/images_from_val/
+```
+
+6. Run remap_obj365.py to merge a subset of the validation set into the training set. Specifically, this script moves samples with indices between 5000 and 800000 from the validation set to the training set.
 ```shell
 python tools/remap_obj365.py --base_dir ${BASE_DIR}
 ```
 
 
-6. Run the resize_obj365.py script to resize any images in the dataset where the maximum edge length exceeds 640 pixels. Use the updated JSON file generated in Step 5 to process the sample data. Ensure that you resize images in both the train and val datasets to maintain consistency.
+7. Run the resize_obj365.py script to resize any images in the dataset where the maximum edge length exceeds 640 pixels. Use the updated JSON file generated in Step 5 to process the sample data. Ensure that you resize images in both the train and val datasets to maintain consistency.
 ```shell
 python tools/resize_obj365.py --base_dir ${BASE_DIR}
 ```
 
-7. Modify paths in [obj365_detection.yml](./configs/dataset/obj365_detection.yml)
+8. Modify paths in [obj365_detection.yml](./configs/dataset/obj365_detection.yml)
 
     ```yaml
     train_dataloader: 
