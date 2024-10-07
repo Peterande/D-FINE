@@ -45,13 +45,13 @@ University of Science and Technology of China
 </p>
 
 <!-- <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/main/latency.png border=0 width=333></td>
-<td><img src=https://github.com/Peterande/storage/blob/main/params.png border=0 width=333></td>
-<td><img src=https://github.com/Peterande/storage/blob/main/flops.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/latency.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/params.png border=0 width=333></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/flops.png border=0 width=333></td>
 </tr></table> -->
 
 <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/main/stats_padded.png border=0 width=1000></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/stats_padded.png border=0 width=1000></td>
 </tr></table>
 
 
