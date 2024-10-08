@@ -51,6 +51,7 @@
     <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png" width="1000">
 </p>
 
+D-FINE 是一个强大的实时目标检测器，将 DETR 中的边界框回归任务重新定义为了细粒度的分布优化（FDR），并引入全局最优的定位自蒸馏（GO-LSD），在不增加额外推理和训练成本的情况下，实现了卓越的性能。
 
 ## 🚀 Updates
 - [x] **\[2024.10.3\]** 发布 D-FINE 系列。
