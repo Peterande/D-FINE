@@ -20,7 +20,7 @@
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/figs/fdr-1.jpg" alt="精细分布优化过程" width="666">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/fdr-1.jpg" alt="精细分布优化过程" width="666">
 </p>
 
 ### GO-LSD：将知识蒸馏应用到FDR框架检测器的探索
@@ -34,7 +34,7 @@
 于是，基于FDR，我们提出了GO-LSD（全局最优定位自蒸馏）。通过在网络层间实现定位知识蒸馏，进一步扩展了D-FINE的能力。
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/figs/go_lsd-1.jpg" alt="GO-LSD过程" width="666">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/go_lsd-1.jpg" alt="GO-LSD过程" width="666">
 </p>
 
 ### 问题1：FDR和GO-LSD会带来更多的推理成本吗？
@@ -49,6 +49,6 @@
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/figs/hard_case-1.jpg" alt="D-FINE在复杂场景中的预测" width="666">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/hard_case-1.jpg" alt="D-FINE在复杂场景中的预测" width="666">
 </p>
 

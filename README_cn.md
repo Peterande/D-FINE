@@ -48,7 +48,7 @@
 </tr></table> -->
 
 <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/master/figs/stats_padded.png border=0 width=1000></td>
+<td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png border=0 width=1000></td>
 </tr></table>
 
 
@@ -492,6 +492,14 @@ pip install fiftyone
 python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
 </details>
+
+## 可视化
+
+在各种检测场景中展示了 FDR 的可视化，其中包含初始和优化后的边界框，同时对比了未加权的分布和加权后分布。
+
+<table><tr>
+<td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg border=0 width=1000></td>
+</tr></table>
 
 ## 引用
 如果你在工作中使用了 `D-FINE` 或其方法，请引用以下 BibTeX 条目：
