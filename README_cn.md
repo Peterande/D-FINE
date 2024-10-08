@@ -1,4 +1,5 @@
 <!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
+
 [English](README.md) | 简体中文 | [博客](src/zoo/dfine/blog_cn.md)
 
 <h2 align="center">
@@ -47,7 +48,7 @@
 </tr></table> -->
 
 <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/master/stats_padded.png border=0 width=1000></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/figs/stats_padded.png border=0 width=1000></td>
 </tr></table>
 
 

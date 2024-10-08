@@ -22,7 +22,7 @@
 
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/fdr-1.jpg" alt="Fine-grained Distribution Refinement Process" width="666">
+    <img src="https://github.com/Peterande/storage/blob/master/figs/fdr-1.jpg" alt="Fine-grained Distribution Refinement Process" width="666">
 </p>
 
 ### GO-LSD: Integrating Knowledge Distillation into FDR-based Detectors
@@ -36,7 +36,7 @@ Detectors equipped with FDR satisfy the following two points:
 Thus, based on FDR, we propose GO-LSD (Global Optimal Localization Self-Distillation). By implementing localization knowledge distillation between network layers, we further extend the capabilities of D-FINE.
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/go_lsd-1.jpg" alt="GO-LSD Process" width="666">
+    <img src="https://github.com/Peterande/storage/blob/master/figs/go_lsd-1.jpg" alt="GO-LSD Process" width="666">
 </p>
 
 ### Question1: Will FDR and GO-LSD increase the inference cost?
@@ -51,5 +51,5 @@ The increased training cost mainly comes from generating the distribution labels
 The following visualization demonstrates D-FINE's predictions in various complex detection scenarios. These include cases with occlusion, low-light conditions, motion blur, depth of field effects, and densely populated scenes. Despite these challenges, D-FINE consistently produces accurate localization results.
 
 <p align="center">
-    <img src="https://github.com/Peterande/storage/blob/master/hard_case-1.jpg" alt="D-FINE Predictions in Challenging Scenarios" width="666">
+    <img src="https://github.com/Peterande/storage/blob/master/figs/hard_case-1.jpg" alt="D-FINE Predictions in Challenging Scenarios" width="666">
 </p>

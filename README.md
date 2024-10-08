@@ -1,4 +1,5 @@
 <!--# [D-FINE: Redefine Regression Task of DETRs as Fine-grained Distribution Refinement](https://arxiv.org/abs/xxxxxx) -->
+
 English | [简体中文](README_cn.md) | [blog](src/zoo/dfine/blog.md)
 
 <h2 align="center">
@@ -51,7 +52,7 @@ University of Science and Technology of China
 </tr></table> -->
 
 <table><tr>
-<td><img src=https://github.com/Peterande/storage/blob/master/stats_padded.png border=0 width=1000></td>
+<td><img src=https://github.com/Peterande/storage/blob/master/figs/stats_padded.png border=0 width=1000></td>
 </tr></table>
 
 
@@ -488,6 +489,23 @@ pip install fiftyone
 python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${model}_coco.yml -r model.pth
 ```
 </details>
+
+## Visualizations
+Visualizations of FDR across detection scenarios with initial and refined bounding boxes, along with unweighted and weighted distributions, highlighting improved localization accuracy.
+
+<div style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000089648.jpg" width="30%" />
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000132796.jpg" width="30%" />
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000142971.jpg" width="30%" />
+</div>
+
+<br/>
+
+<div style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000261888.jpg" width="30%" />
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000365208.jpg" width="30%" />
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000551820.jpg" width="30%" />
+</div>
 
 
 
