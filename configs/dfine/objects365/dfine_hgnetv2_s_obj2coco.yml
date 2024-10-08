@@ -6,13 +6,11 @@ __include__: [
   '../include/dfine_hgnetv2.yml',
 ]
 
-
 output_dir: ./output/dfine_hgnetv2_s_obj2coco
 
 
 DFINE:
   backbone: HGNetv2
-
 
 HGNetv2:
   name: 'B0'

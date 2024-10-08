@@ -8,6 +8,7 @@ __include__: [
 
 output_dir: ./output/dfine_hgnetv2_m_custom
 
+
 DFINE:
   backbone: HGNetv2
 
@@ -44,6 +45,7 @@ optimizer:
   lr: 0.00025
   betas: [0.9, 0.999]
   weight_decay: 0.000125
+
 
 # Increase to search for the optimal ema
 epoches: 132 # 120 + 4n

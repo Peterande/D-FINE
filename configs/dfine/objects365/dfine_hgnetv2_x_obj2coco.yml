@@ -6,13 +6,11 @@ __include__: [
   '../include/dfine_hgnetv2.yml',
 ]
 
-
 output_dir: ./output/dfine_hgnetv2_x_obj2coco
 
 
 DFINE:
   backbone: HGNetv2
-
 
 HGNetv2:
   name: 'B5'
@@ -43,6 +41,7 @@ optimizer:
   lr: 0.00025
   betas: [0.9, 0.999]
   weight_decay: 0.000125
+
 
 epoches: 36 # Early stop
 train_dataloader: 

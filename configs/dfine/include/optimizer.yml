@@ -31,7 +31,6 @@ lr_scheduler:
   milestones: [500]
   gamma: 0.1
 
-
 lr_warmup_scheduler:
   type: LinearWarmup
   warmup_duration: 500

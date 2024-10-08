@@ -8,6 +8,7 @@ __include__: [
 
 output_dir: ./output/dfine_hgnetv2_l_custom
 
+
 HGNetv2:
   name: 'B4'
   return_idx: [1, 2, 3]
@@ -28,6 +29,7 @@ optimizer:
   lr: 0.00025
   betas: [0.9, 0.999]
   weight_decay: 0.000125
+
 
 # Increase to search for the optimal ema
 epoches: 80 # 72 + 2n
