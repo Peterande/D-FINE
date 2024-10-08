@@ -51,10 +51,9 @@ University of Science and Technology of China
 <td><img src=https://github.com/Peterande/storage/blob/master/flops.png border=0 width=333></td>
 </tr></table> -->
 
-<table><tr>
-<td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png border=0 width=1000></td>
-</tr></table>
-
+<p align="center">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png" width="1000">
+</p>
 
 ## 🚀 Updates
 - [x] **\[2024.10.3\]** Release D-FINE series.
@@ -493,9 +492,17 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 ## Visualizations
 Visualizations of FDR across detection scenarios with initial and refined bounding boxes, along with unweighted and weighted distributions.
 
+<p align="center">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg" width="1000">
+</p>
+
+<!-- <div style="display: flex; flex-wrap: wrap; justify-content: center; margin: 0; padding: 0;">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg" style="width:99.96%; margin: 0; padding: 0;" />
+</div>
+
 <table><tr>
 <td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg border=0 width=1000></td>
-</tr></table>
+</tr></table> -->
 
 
 

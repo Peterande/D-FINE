@@ -47,9 +47,9 @@
 <td><img src=https://github.com/Peterande/storage/blob/master/flops.png border=0 width=333></td>
 </tr></table> -->
 
-<table><tr>
-<td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png border=0 width=1000></td>
-</tr></table>
+<p align="center">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/stats_padded.png" width="1000">
+</p>
 
 
 ## 🚀 Updates
@@ -497,9 +497,14 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 
 在各种检测场景中展示了 FDR 的可视化，其中包含初始和优化后的边界框，同时对比了未加权的分布和加权后分布。
 
-<table><tr>
+
+<p align="center">
+    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg" width="1000">
+</p>
+
+<!-- <table><tr>
 <td><img src=https://raw.githubusercontent.com/Peterande/storage/master/figs/merged_image.jpg border=0 width=1000></td>
-</tr></table>
+</tr></table> -->
 
 ## 引用
 如果你在工作中使用了 `D-FINE` 或其方法，请引用以下 BibTeX 条目：
