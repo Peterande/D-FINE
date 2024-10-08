@@ -494,17 +494,17 @@ python tools/visualization/fiftyone_vis.py -c configs/dfine/dfine_hgnetv2_${mode
 Visualizations of FDR across detection scenarios with initial and refined bounding boxes, along with unweighted and weighted distributions, highlighting improved localization accuracy.
 
 <div style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000089648.jpg" width="30%" />
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000132796.jpg" width="30%" />
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000142971.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000089648.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000132796.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000142971.jpg" width="30%" />
 </div>
 
 <br/>
 
 <div style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000261888.jpg" width="30%" />
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000365208.jpg" width="30%" />
-    <img src="https://raw.githubusercontent.com/Peterande/storage/master/figs/Pred_000000551820.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000261888.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000365208.jpg" width="30%" />
+    <img src="https://github.com/Peterande/storage/blob/master/figs/Pred_000000551820.jpg" width="30%" />
 </div>
 
 
