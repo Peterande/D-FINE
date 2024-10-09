@@ -61,7 +61,7 @@ D-FINE 是一个强大的实时目标检测器，将 DETR 中的边界框回归�
 ## 模型库
 
 ### 基础模型
-| 模型 | 数据集 | AP<sup>val</sup> | 参数量 | FPS | GFLOPs | 配置 | 检查点 |
+| 模型 | 数据集 | AP<sup>val</sup> | 参数量 | FPS | GFLOPs | 配置 | 权重 |
 | :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: |
 **D-FINE-S** | COCO | **48.5** |  10M | 287 | 25 | [cfg](./configs/dfine/dfine_hgnetv2_s_coco.yml) | [48.5](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_s_coco.pth)
 **D-FINE-M** | COCO | **52.3** |  19M | 180 | 57 | [cfg](./configs/dfine/dfine_hgnetv2_m_coco.yml) | [52.3](https://github.com/Peterande/storage/releases/download/dfinev1/dfine_m_coco.pth)
