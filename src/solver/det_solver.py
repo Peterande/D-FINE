@@ -118,8 +118,8 @@ class DetSolver(BaseSolver):
 
             coco_eval = coco_evaluator.coco_eval["bbox"]
             precisions = coco_evaluator.coco_eval["bbox"].eval['precision']
-            recalls = coco_evaluator.coco_eval["bbox"].eval['recall']  
-            
+            recalls = coco_evaluator.coco_eval["bbox"].eval['recall']
+
             class_results = {}
             for category_id in coco_eval.cocoGt.getCatIds():
                 category_info = coco_eval.cocoGt.loadCats([category_id])[0]
@@ -133,7 +133,7 @@ class DetSolver(BaseSolver):
                 if self.writer and dist_utils.is_main_process():
                     for i, v in enumerate(test_stats[k]):
                         self.writer.add_scalar(f'Test/{k}_{i}'.format(k), v, epoch)
-                    
+
                     for class_id in class_results.keys():
                         self.writer.add_scalar(f'Test/class_{class_results[class_id]["name"]}_mAP', class_results[class_id]["mAP"], epoch)
                         self.writer.add_scalar(f'Test/class_{class_results[class_id]["name"]}_mAR', class_results[class_id]["mAR"], epoch)
