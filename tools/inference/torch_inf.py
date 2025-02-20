@@ -10,30 +10,45 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
-from PIL import Image, ImageDraw
+import supervision as sv
+from PIL import Image
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from src.core import YAMLConfig
 
 
 def draw(images, labels, boxes, scores, thrh=0.4):
-    for i, im in enumerate(images):
-        draw = ImageDraw.Draw(im)
+    for i, image in enumerate(images):
+        detections = sv.Detections(
+            xyxy=boxes[i].detach().cpu().numpy(),
+            confidence=scores[i].detach().cpu().numpy(),
+            class_id=labels[i].detach().cpu().numpy().astype(int),
+        )
+        detections = detections[detections.confidence > thrh]
 
-        scr = scores[i]
-        lab = labels[i][scr > thrh]
-        box = boxes[i][scr > thrh]
-        scrs = scr[scr > thrh]
+        text_scale = sv.calculate_optimal_text_scale(resolution_wh=image.size)
+        line_thickness = sv.calculate_optimal_line_thickness(resolution_wh=image.size)
 
-        for j, b in enumerate(box):
-            draw.rectangle(list(b), outline="red")
-            draw.text(
-                (b[0], b[1]),
-                text=f"{lab[j].item()} {round(scrs[j].item(), 2)}",
-                fill="blue",
-            )
+        box_annotator = sv.BoxAnnotator(thickness=line_thickness)
+        label_annotator = sv.LabelAnnotator(text_scale=text_scale, smart_position=True)
 
-        im.save("torch_results.jpg")
+        labels = [
+            f"{class_id} {confidence:.2f}"
+            for class_id, confidence
+            in zip(detections.class_id, detections.confidence)
+        ]
+
+        image = box_annotator.annotate(
+            scene=image,
+            detections=detections
+        )
+        image = label_annotator.annotate(
+            scene=image,
+            detections=detections,
+            labels=labels
+        )
+
+        image.save("torch_results.jpg")
 
 
 def process_image(model, device, file_path):
