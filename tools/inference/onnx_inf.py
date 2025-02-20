@@ -7,7 +7,8 @@ import numpy as np
 import onnxruntime as ort
 import torch
 import torchvision.transforms as T
-from PIL import Image, ImageDraw
+from PIL import Image
+import supervision as sv
 
 
 def resize_with_aspect_ratio(image, size, interpolation=Image.BILINEAR):
@@ -27,27 +28,59 @@ def resize_with_aspect_ratio(image, size, interpolation=Image.BILINEAR):
 def draw(images, labels, boxes, scores, ratios, paddings, thrh=0.4):
     result_images = []
     for i, im in enumerate(images):
-        draw = ImageDraw.Draw(im)
+        np_image = np.array(im)
+
         scr = scores[i]
-        lab = labels[i][scr > thrh]
-        box = boxes[i][scr > thrh]
-        scr = scr[scr > thrh]
+        lab = labels[i]
+        box = boxes[i]
+
+        keep_mask = scr > thrh
+        scr = scr[keep_mask]
+        lab = lab[keep_mask]
+        box = box[keep_mask]
 
         ratio = ratios[i]
         pad_w, pad_h = paddings[i]
 
-        for lbl, bb in zip(lab, box):
-            # Adjust bounding boxes according to the resizing and padding
-            bb = [
-                (bb[0] - pad_w) / ratio,
-                (bb[1] - pad_h) / ratio,
-                (bb[2] - pad_w) / ratio,
-                (bb[3] - pad_h) / ratio,
-            ]
-            draw.rectangle(bb, outline="red")
-            draw.text((bb[0], bb[1]), text=str(lbl), fill="blue")
+        adjusted_boxes = []
+        for b in box:
+            x1 = (b[0] - pad_w) / ratio
+            y1 = (b[1] - pad_h) / ratio
+            x2 = (b[2] - pad_w) / ratio
+            y2 = (b[3] - pad_h) / ratio
+            adjusted_boxes.append([x1, y1, x2, y2])
+        adjusted_boxes = np.array(adjusted_boxes)
 
-        result_images.append(im)
+        detections = sv.Detections(
+            xyxy=adjusted_boxes,
+            confidence=scr,
+            class_id=lab.astype(int),
+        )
+
+        height, width = np_image.shape[:2]
+        resolution_wh = (width, height)
+
+        text_scale = sv.calculate_optimal_text_scale(resolution_wh=resolution_wh)
+        line_thickness = sv.calculate_optimal_line_thickness(resolution_wh=resolution_wh)
+
+        box_annotator = sv.BoxAnnotator(thickness=line_thickness)
+        label_annotator = sv.LabelAnnotator(text_scale=text_scale, smart_position=True)
+
+        label_texts = [
+            f"{class_id} {confidence:.2f}"
+            for class_id, confidence in zip(detections.class_id, detections.confidence)
+        ]
+
+        np_image = box_annotator.annotate(scene=np_image, detections=detections)
+        np_image = label_annotator.annotate(
+            scene=np_image,
+            detections=detections,
+            labels=label_texts,
+        )
+
+        result_im = Image.fromarray(np_image)
+        result_images.append(result_im)
+
     return result_images
 
 

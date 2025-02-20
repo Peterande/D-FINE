@@ -32,20 +32,17 @@ def draw(images, labels, boxes, scores, thrh=0.4):
         box_annotator = sv.BoxAnnotator(thickness=line_thickness)
         label_annotator = sv.LabelAnnotator(text_scale=text_scale, smart_position=True)
 
-        labels = [
+        label_texts = [
             f"{class_id} {confidence:.2f}"
             for class_id, confidence
             in zip(detections.class_id, detections.confidence)
         ]
 
-        image = box_annotator.annotate(
-            scene=image,
-            detections=detections
-        )
+        image = box_annotator.annotate(scene=image, detections=detections)
         image = label_annotator.annotate(
             scene=image,
             detections=detections,
-            labels=labels
+            labels=label_texts
         )
 
         image.save("torch_results.jpg")
