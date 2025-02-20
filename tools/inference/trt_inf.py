@@ -13,6 +13,7 @@ import numpy as np
 import tensorrt as trt
 import torch
 import torchvision.transforms as T
+import supervision as sv
 from PIL import Image
 
 
