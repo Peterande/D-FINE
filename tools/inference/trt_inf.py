@@ -13,7 +13,8 @@ import numpy as np
 import tensorrt as trt
 import torch
 import torchvision.transforms as T
-from PIL import Image, ImageDraw
+import supervision as sv
+from PIL import Image
 
 
 class TimeProfiler(contextlib.ContextDecorator):
@@ -122,22 +123,38 @@ class TRTInference(object):
 
 
 def draw(images, labels, boxes, scores, thrh=0.4):
-    for i, im in enumerate(images):
-        draw = ImageDraw.Draw(im)
-        scr = scores[i]
-        lab = labels[i][scr > thrh]
-        box = boxes[i][scr > thrh]
-        scrs = scr[scr > thrh]
+    updated_images = []
 
-        for j, b in enumerate(box):
-            draw.rectangle(list(b), outline="red")
-            draw.text(
-                (b[0], b[1]),
-                text=f"{lab[j].item()} {round(scrs[j].item(), 2)}",
-                fill="blue",
-            )
+    for i, image in enumerate(images):
+        detections = sv.Detections(
+            xyxy=boxes[i].detach().cpu().numpy(),
+            confidence=scores[i].detach().cpu().numpy(),
+            class_id=labels[i].detach().cpu().numpy().astype(int),
+        )
+        detections = detections[detections.confidence > thrh]
 
-    return images
+        text_scale = sv.calculate_optimal_text_scale(resolution_wh=image.size)
+        line_thickness = sv.calculate_optimal_line_thickness(resolution_wh=image.size)
+
+        box_annotator = sv.BoxAnnotator(thickness=line_thickness)
+        label_annotator = sv.LabelAnnotator(text_scale=text_scale, smart_position=True)
+
+        label_texts = [
+            f"{class_id} {confidence:.2f}"
+            for class_id, confidence
+            in zip(detections.class_id, detections.confidence)
+        ]
+
+        image = box_annotator.annotate(scene=image, detections=detections)
+        image = label_annotator.annotate(
+            scene=image,
+            detections=detections,
+            labels=label_texts
+        )
+
+        updated_images.append(image)
+
+    return updated_images
 
 
 def process_image(m, file_path, device):

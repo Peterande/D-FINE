@@ -5,6 +5,7 @@ Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 import cv2
 import numpy as np
 import openvino
+import supervision as sv
 from openvino.runtime import Core
 
 
@@ -71,18 +72,39 @@ class OvInfer:
 
     def draw_and_save_image(self, infer_result, image_path, score_threshold=0.6):
         draw_image = self.ori_image
+
         scores = infer_result["scores"]
         labels = infer_result["labels"]
         boxes = infer_result["boxes"]
-        for i in range(self.query_num):
-            if scores[0, i] > score_threshold:
-                cx = boxes[0, i, 0] * self.ratio
-                cy = boxes[0, i, 1] * self.ratio
-                bx = boxes[0, i, 2] * self.ratio
-                by = boxes[0, i, 3] * self.ratio
-                cv2.rectangle(
-                    draw_image, (int(cx), int(cy), int(bx - cx), int(by - cy)), (255, 0, 0), 1
-                )
+
+        detections = sv.Detections(
+            xyxy=boxes[0] * self.ratio,
+            confidence=scores[0],
+            class_id=labels[0].astype(int)
+        )
+        detections = detections[detections.confidence > score_threshold]
+
+        height, width = draw_image.shape[:2]
+        resolution_wh = (width, height)
+
+        text_scale = sv.calculate_optimal_text_scale(resolution_wh=resolution_wh)
+        line_thickness = sv.calculate_optimal_line_thickness(resolution_wh=resolution_wh)
+
+        box_annotator = sv.BoxAnnotator(thickness=line_thickness)
+        label_annotator = sv.LabelAnnotator(text_scale=text_scale, smart_position=True)
+
+        label_texts = [
+            f"{class_id} {confidence:.2f}"
+            for class_id, confidence in zip(detections.class_id, detections.confidence)
+        ]
+
+        draw_image = box_annotator.annotate(scene=draw_image, detections=detections)
+        draw_image = label_annotator.annotate(
+            scene=draw_image,
+            detections=detections,
+            labels=label_texts,
+        )
+
         cv2.imwrite(image_path, draw_image)
 
 
