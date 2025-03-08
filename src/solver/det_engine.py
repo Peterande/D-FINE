@@ -218,7 +218,7 @@ def evaluate(
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     stats = {}
-    # stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}    
+    # stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
 
