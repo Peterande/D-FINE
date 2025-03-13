@@ -70,7 +70,7 @@ class Validator:
         recall = tps / (tps + fns) if (tps + fns) > 0 else 0
         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
         iou = np.mean(ious).item() if ious else 0
-        
+
         # Compute mAP@0.5 and mAP@0.5-0.95
         mAP_50 = self._compute_mAP(preds, iou_threshold=0.5)
         mAP_50_95 = self._compute_mAP(preds, iou_thresholds=np.arange(0.5, 1.0, 0.05))

@@ -238,7 +238,7 @@ def evaluate(
         if "segm" in iou_types:
             stats["coco_eval_masks"] = coco_evaluator.coco_eval["segm"].stats.tolist()
 
- #Log the computed metrics           
+ #Log the computed metrics
     if use_wandb:
         wandb.log({
             "Precision": metrics["precision"],
@@ -249,4 +249,4 @@ def evaluate(
         })
 
     return stats, coco_evaluator, metrics
-    
+
