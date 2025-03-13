@@ -70,16 +70,64 @@ class Validator:
         recall = tps / (tps + fns) if (tps + fns) > 0 else 0
         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
         iou = np.mean(ious).item() if ious else 0
+        
+        # Compute mAP@0.5 and mAP@0.5-0.95
+        mAP_50 = self._compute_mAP(preds, iou_threshold=0.5)
+        mAP_50_95 = self._compute_mAP(preds, iou_thresholds=np.arange(0.5, 1.0, 0.05))
+
         return {
             "f1": f1,
             "precision": precision,
             "recall": recall,
             "iou": iou,
+            "mAP@0.5": mAP_50,
+            "mAP@0.5-0.95": mAP_50_95,
             "TPs": tps,
             "FPs": fps,
             "FNs": fns,
             "extended_metrics": extended_metrics,
         }
+
+    def _compute_mAP(self, preds, iou_thresholds):
+        ap_per_class = defaultdict(list)
+        for pred, gt in zip(preds, self.gt):
+            pred_boxes = pred["boxes"]
+            pred_labels = pred["labels"]
+            gt_boxes = gt["boxes"]
+            gt_labels = gt["labels"]
+
+            for iou_thresh in iou_thresholds:
+                ious = box_iou(pred_boxes, gt_boxes)
+                ious_mask = ious >= iou_thresh
+
+                pred_indices, gt_indices = torch.nonzero(ious_mask, as_tuple=True)
+                if not pred_indices.numel():
+                    continue
+
+                iou_values = ious[pred_indices, gt_indices]
+                sorted_indices = torch.argsort(-iou_values)
+                pred_indices = pred_indices[sorted_indices]
+                gt_indices = gt_indices[sorted_indices]
+
+                matched_preds = set()
+                matched_gts = set()
+                for pred_idx, gt_idx in zip(pred_indices, gt_indices):
+                    if gt_idx.item() not in matched_gts and pred_idx.item() not in matched_preds:
+                        matched_preds.add(pred_idx.item())
+                        matched_gts.add(gt_idx.item())
+                        pred_label = pred_labels[pred_idx].item()
+                        ap_per_class[pred_label].append(1)
+
+                unmatched_preds = set(range(len(pred_boxes))) - matched_preds
+                for pred_idx in unmatched_preds:
+                    pred_label = pred_labels[pred_idx].item()
+                    ap_per_class[pred_label].append(0)
+
+        aps = []
+        for label, ap_list in ap_per_class.items():
+            if ap_list:
+                aps.append(np.mean(ap_list))
+        return np.mean(aps) if aps else 0
 
     def _compute_matrix_multi_class(self, preds):
         metrics_per_class = defaultdict(lambda: {"TPs": 0, "FPs": 0, "FNs": 0, "IoUs": []})
