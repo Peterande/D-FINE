@@ -503,40 +503,38 @@ class HGNetv2(nn.Module):
         if pretrained:
             RED, GREEN, RESET = "\033[91m", "\033[92m", "\033[0m"
             try:
-                model_path = local_model_dir + "PPHGNetV2_" + name + "_stage1.pth"
-                if os.path.exists(model_path):
-                    state = torch.load(model_path, map_location="cpu")
-                    print(f"Loaded stage1 {name} HGNetV2 from local file.")
-                else:
-                    # If the file doesn't exist locally, download from the URL
-                    if safe_get_rank() == 0:
-                        print(
-                            GREEN
-                            + "If the pretrained HGNetV2 can't be downloaded automatically. Please check your network connection."
-                            + RESET
-                        )
-                        print(
-                            GREEN
-                            + "Please check your network connection. Or download the model manually from "
-                            + RESET
-                            + f"{download_url}"
-                            + GREEN
-                            + " to "
-                            + RESET
-                            + f"{local_model_dir}."
-                            + RESET
-                        )
-                        state = torch.hub.load_state_dict_from_url(
-                            download_url, map_location="cpu", model_dir=local_model_dir
-                        )
-                        safe_barrier()
-                    else:
-                        safe_barrier()
-                        state = torch.load(local_model_dir)
-
+                # If the file doesn't exist locally, download from the URL
+                if safe_get_rank() == 0:
+                    print(
+                        GREEN
+                        + "If the pretrained HGNetV2 can't be downloaded automatically. Please check your network connection."
+                        + RESET
+                    )
+                    print(
+                        GREEN
+                        + "Please check your network connection. Or download the model manually from "
+                        + RESET
+                        + f"{download_url}"
+                        + GREEN
+                        + " to "
+                        + RESET
+                        + f"{local_model_dir}."
+                        + RESET
+                    )
+                    state = torch.hub.load_state_dict_from_url(
+                        download_url, map_location="cpu", model_dir=local_model_dir
+                    )
                     print(f"Loaded stage1 {name} HGNetV2 from URL.")
 
+                # Wait for rank 0 to download the model
+                safe_barrier()
+
+                # All processes load the downloaded model
+                model_path = local_model_dir + "PPHGNetV2_" + name + "_stage1.pth"
+                state = torch.load(model_path, map_location="cpu")
+
                 self.load_state_dict(state)
+                print(f"Loaded stage1 {name} HGNetV2 from URL.")
 
             except (Exception, KeyboardInterrupt) as e:
                 if safe_get_rank() == 0:
