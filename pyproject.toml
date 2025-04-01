@@ -1,0 +1,27 @@
+[project]
+name = "dfine"
+version = "0.1.0"
+description = "Real-time object detector based on DETRs and FDR."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "calflops>=0.3.2",
+    "loguru>=0.7.3",
+    "pyyaml>=6.0.2",
+    "scipy>=1.15.2",
+    "torch>=2.0.1",
+    "torchvision>=0.15.2",
+    "transformers>=4.50.3",
+]
+
+[project.optional-dependencies]
+training = [
+    "faster-coco-eval>=1.6.5",
+    "tensorboard>=2.19.0",
+]
+all = [
+    "dfine[training]",
+]
+
+[tool.uv.sources]
+dfine = { workspace = true }
