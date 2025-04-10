@@ -14,9 +14,14 @@ import torch.nn as nn
 from ..misc import dist_utils
 from ._solver import BaseSolver
 from .clas_engine import evaluate, train_one_epoch
+from ..optim.early_stopping import EarlyStopping
 
 
 class ClasSolver(BaseSolver):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.early_stopping = EarlyStopping(patience=cfg.early_stopping_patience)
+
     def fit(
         self,
     ):
@@ -32,6 +37,7 @@ class ClasSolver(BaseSolver):
 
         start_time = time.time()
         start_epoch = self.last_epoch + 1
+        self.early_stopping.reset()
         for epoch in range(start_epoch, args.epochs):
             if dist_utils.is_dist_available_and_initialized():
                 self.train_dataloader.sampler.set_epoch(epoch)
@@ -58,6 +64,13 @@ class ClasSolver(BaseSolver):
 
             module = self.ema.module if self.ema else self.model
             test_stats = evaluate(module, self.criterion, self.val_dataloader, self.device)
+
+            # Pass validation loss to EarlyStopping
+            val_loss = test_stats["loss"]
+            self.early_stopping(val_loss)
+            if self.early_stopping.early_stop:
+                print(f"Early stopping at epoch {epoch}")
+                break
 
             log_stats = {
                 **{f"train_{k}": v for k, v in train_stats.items()},
