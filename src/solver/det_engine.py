@@ -240,17 +240,15 @@ def evaluate(
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
-    if coco_evaluator is not None:
-        coco_evaluator.synchronize_between_processes()
-
-    # accumulate predictions from all images
-    if coco_evaluator is not None:
-        coco_evaluator.accumulate()
-        coco_evaluator.summarize()
-
     stats = {}
     # stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     if coco_evaluator is not None:
+        coco_evaluator.synchronize_between_processes()
+
+        # accumulate predictions from all images
+        coco_evaluator.accumulate()
+        coco_evaluator.summarize()
+
         if "bbox" in iou_types:
             stats["coco_eval_bbox"] = coco_evaluator.coco_eval["bbox"].stats.tolist()
         if "segm" in iou_types:
