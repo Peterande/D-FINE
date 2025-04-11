@@ -45,7 +45,7 @@ repos:
   #       args: ["--in-place"]
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.17
+    rev: 0.7.22
     hooks:
       - id: mdformat
         exclude: '^.*\.md$'
@@ -56,7 +56,7 @@ repos:
           - mdformat_frontmatter
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.11.4
     hooks:
       # try to fix what is possible
       - id: ruff
