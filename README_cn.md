@@ -533,7 +533,7 @@ python tools/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${model}_coco
 
 3. 导出 [tensorrt](https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html)
 ```shell
-trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
+trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16 --builderOptimizationLevel=5 --useCudaGraph
 ```
 
 </details>
