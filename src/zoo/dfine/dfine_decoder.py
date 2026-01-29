@@ -377,6 +377,8 @@ class TransformerDecoder(nn.Module):
         spatial_shapes,
         bbox_head,
         score_head,
+        keypoint_head,
+        pose_lqe_head,
         query_pos_head,
         pre_bbox_head,
         integral,
@@ -392,6 +394,8 @@ class TransformerDecoder(nn.Module):
 
         dec_out_bboxes = []
         dec_out_logits = []
+        dec_out_keypoints = []
+        dec_out_pose_quality = []
         dec_out_pred_corners = []
         dec_out_refs = []
         if not hasattr(self, "project"):
@@ -436,6 +440,17 @@ class TransformerDecoder(nn.Module):
                 scores = self.lqe_layers[i](scores, pred_corners)
                 dec_out_logits.append(scores)
                 dec_out_bboxes.append(inter_ref_bbox)
+                if keypoint_head is not None:
+                    # keypoints: [B, Q, K, 3], where 3 = (x, y, visibility_logit)
+                    kpt = keypoint_head[i](output)
+                    kpt = kpt.view(kpt.shape[0], kpt.shape[1], -1, 3)
+                    # constrain (x, y) to [0, 1]; keep visibility as logits
+                    kpt_xy = kpt[..., :2].sigmoid()
+                    kpt_vis = kpt[..., 2:]
+                    dec_out_keypoints.append(torch.cat([kpt_xy, kpt_vis], dim=-1))
+                if pose_lqe_head is not None:
+                    # pose quality logit per query: [B, Q, 1]
+                    dec_out_pose_quality.append(pose_lqe_head[i](output))
                 dec_out_pred_corners.append(pred_corners)
                 dec_out_refs.append(ref_points_initial)
 
@@ -449,6 +464,8 @@ class TransformerDecoder(nn.Module):
         return (
             torch.stack(dec_out_bboxes),
             torch.stack(dec_out_logits),
+            (torch.stack(dec_out_keypoints) if keypoint_head is not None else None),
+            (torch.stack(dec_out_pose_quality) if pose_lqe_head is not None else None),
             torch.stack(dec_out_pred_corners),
             torch.stack(dec_out_refs),
             pre_bboxes,
@@ -487,6 +504,10 @@ class DFINETransformer(nn.Module):
         reg_max=32,
         reg_scale=4.0,
         layer_scale=1,
+        num_keypoints=0,
+        pose_lqe: bool = False,
+        denoise_keypoints: bool = False,
+        keypoints_noise_scale: float = 0.15,
     ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -502,6 +523,10 @@ class DFINETransformer(nn.Module):
         self.num_levels = num_levels
         self.num_classes = num_classes
         self.num_queries = num_queries
+        self.num_keypoints = num_keypoints
+        self.pose_lqe = bool(pose_lqe) and (self.num_keypoints and self.num_keypoints > 0)
+        self.denoise_keypoints = bool(denoise_keypoints) and (self.num_keypoints and self.num_keypoints > 0)
+        self.keypoints_noise_scale = float(keypoints_noise_scale)
         self.eps = eps
         self.num_layers = num_layers
         self.eval_spatial_size = eval_spatial_size
@@ -612,6 +637,37 @@ class DFINETransformer(nn.Module):
         )
         self.integral = Integral(self.reg_max)
 
+        # optional keypoint head (pose estimation): per-query keypoints aligned with DETR queries
+        # output per query: K * 3 where 3 = (x, y, visibility_logit)
+        if self.num_keypoints and self.num_keypoints > 0:
+            self.dec_keypoint_head = nn.ModuleList(
+                [
+                    MLP(hidden_dim, hidden_dim, self.num_keypoints * 3, 3)
+                    for _ in range(self.eval_idx + 1)
+                ]
+                + [
+                    MLP(scaled_dim, scaled_dim, self.num_keypoints * 3, 3)
+                    for _ in range(num_layers - self.eval_idx - 1)
+                ]
+            )
+        else:
+            self.dec_keypoint_head = None
+
+        # Pose-LQE: per-query pose quality logit (trained to predict OKS for matched pairs).
+        if self.pose_lqe:
+            self.dec_pose_lqe_head = nn.ModuleList(
+                [MLP(hidden_dim, hidden_dim, 1, 2) for _ in range(self.eval_idx + 1)]
+                + [MLP(scaled_dim, scaled_dim, 1, 2) for _ in range(num_layers - self.eval_idx - 1)]
+            )
+        else:
+            self.dec_pose_lqe_head = None
+
+        # Optional: inject noisy bbox-relative keypoints into DN query content for pose denoising.
+        if self.denoise_keypoints:
+            self.denoising_kpt_proj = MLP(self.num_keypoints * 2, hidden_dim, hidden_dim, 2)
+        else:
+            self.denoising_kpt_proj = None
+
         # init encoder output anchors and valid_mask
         if self.eval_spatial_size:
             anchors, valid_mask = self._generate_anchors()
@@ -633,6 +689,20 @@ class DFINETransformer(nn.Module):
                 for i in range(len(self.dec_bbox_head))
             ]
         )
+        if self.dec_keypoint_head is not None:
+            self.dec_keypoint_head = nn.ModuleList(
+                [
+                    self.dec_keypoint_head[i] if i <= self.eval_idx else nn.Identity()
+                    for i in range(len(self.dec_keypoint_head))
+            ]
+        )
+        if self.dec_pose_lqe_head is not None:
+            self.dec_pose_lqe_head = nn.ModuleList(
+                [
+                    self.dec_pose_lqe_head[i] if i <= self.eval_idx else nn.Identity()
+                    for i in range(len(self.dec_pose_lqe_head))
+            ]
+        )
 
     def _reset_parameters(self, feat_channels):
         bias = bias_init_with_prob(0.01)
@@ -648,6 +718,16 @@ class DFINETransformer(nn.Module):
             if hasattr(reg_, "layers"):
                 init.constant_(reg_.layers[-1].weight, 0)
                 init.constant_(reg_.layers[-1].bias, 0)
+        if self.dec_keypoint_head is not None:
+            for kpt_ in self.dec_keypoint_head:
+                if hasattr(kpt_, "layers"):
+                    init.constant_(kpt_.layers[-1].weight, 0)
+                    init.constant_(kpt_.layers[-1].bias, 0)
+        if self.dec_pose_lqe_head is not None:
+            for q_ in self.dec_pose_lqe_head:
+                if hasattr(q_, "layers"):
+                    init.constant_(q_.layers[-1].weight, 0)
+                    init.constant_(q_.layers[-1].bias, 0)
 
         init.xavier_uniform_(self.enc_output[0].weight)
         if self.learn_query_content:
@@ -843,7 +923,13 @@ class DFINETransformer(nn.Module):
 
         # prepare denoising training
         if self.training and self.num_denoising > 0:
-            denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = (
+            (
+                denoising_logits,
+                denoising_bbox_unact,
+                attn_mask,
+                dn_meta,
+                denoising_kpt,
+            ) = (
                 get_contrastive_denoising_training_group(
                     targets,
                     self.num_classes,
@@ -852,8 +938,14 @@ class DFINETransformer(nn.Module):
                     num_denoising=self.num_denoising,
                     label_noise_ratio=self.label_noise_ratio,
                     box_noise_scale=1.0,
+                    num_keypoints=int(self.num_keypoints),
+                    keypoints_noise_scale=float(self.keypoints_noise_scale),
                 )
             )
+            if self.denoising_kpt_proj is not None and denoising_kpt is not None:
+                # denoising_kpt: [B, L, K, 2] bbox-relative noisy coords
+                kpt_flat = denoising_kpt.flatten(2)  # [B, L, K*2]
+                denoising_logits = denoising_logits + self.denoising_kpt_proj(kpt_flat)
         else:
             denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
@@ -862,13 +954,24 @@ class DFINETransformer(nn.Module):
         )
 
         # decoder
-        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
+        (
+            out_bboxes,
+            out_logits,
+            out_keypoints,
+            out_pose_quality,
+            out_corners,
+            out_refs,
+            pre_bboxes,
+            pre_logits,
+        ) = self.decoder(
             init_ref_contents,
             init_ref_points_unact,
             memory,
             spatial_shapes,
             self.dec_bbox_head,
             self.dec_score_head,
+            self.dec_keypoint_head,
+            self.dec_pose_lqe_head,
             self.query_pos_head,
             self.pre_bbox_head,
             self.integral,
@@ -883,6 +986,12 @@ class DFINETransformer(nn.Module):
             dn_pre_bboxes, pre_bboxes = torch.split(pre_bboxes, dn_meta["dn_num_split"], dim=1)
             dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta["dn_num_split"], dim=2)
             dn_out_logits, out_logits = torch.split(out_logits, dn_meta["dn_num_split"], dim=2)
+            if out_keypoints is not None:
+                dn_out_keypoints, out_keypoints = torch.split(
+                    out_keypoints, dn_meta["dn_num_split"], dim=2
+                )
+            if out_pose_quality is not None:
+                dn_out_pose_quality, out_pose_quality = torch.split(out_pose_quality, dn_meta["dn_num_split"], dim=2)
 
             dn_out_corners, out_corners = torch.split(out_corners, dn_meta["dn_num_split"], dim=2)
             dn_out_refs, out_refs = torch.split(out_refs, dn_meta["dn_num_split"], dim=2)
@@ -891,6 +1000,8 @@ class DFINETransformer(nn.Module):
             out = {
                 "pred_logits": out_logits[-1],
                 "pred_boxes": out_bboxes[-1],
+                **({"pred_keypoints": out_keypoints[-1]} if out_keypoints is not None else {}),
+                **({"pred_pose_quality": out_pose_quality[-1]} if out_pose_quality is not None else {}),
                 "pred_corners": out_corners[-1],
                 "ref_points": out_refs[-1],
                 "up": self.up,
@@ -898,11 +1009,17 @@ class DFINETransformer(nn.Module):
             }
         else:
             out = {"pred_logits": out_logits[-1], "pred_boxes": out_bboxes[-1]}
+            if out_keypoints is not None:
+                out["pred_keypoints"] = out_keypoints[-1]
+            if out_pose_quality is not None:
+                out["pred_pose_quality"] = out_pose_quality[-1]
 
         if self.training and self.aux_loss:
             out["aux_outputs"] = self._set_aux_loss2(
                 out_logits[:-1],
                 out_bboxes[:-1],
+                (out_keypoints[:-1] if out_keypoints is not None else None),
+                (out_pose_quality[:-1] if out_pose_quality is not None else None),
                 out_corners[:-1],
                 out_refs[:-1],
                 out_corners[-1],
@@ -916,6 +1033,8 @@ class DFINETransformer(nn.Module):
                 out["dn_outputs"] = self._set_aux_loss2(
                     dn_out_logits,
                     dn_out_bboxes,
+                    (dn_out_keypoints if out_keypoints is not None else None),
+                    (dn_out_pose_quality if out_pose_quality is not None else None),
                     dn_out_corners,
                     dn_out_refs,
                     dn_out_corners[-1],
@@ -938,6 +1057,8 @@ class DFINETransformer(nn.Module):
         self,
         outputs_class,
         outputs_coord,
+        outputs_keypoints,
+        outputs_pose_quality,
         outputs_corners,
         outputs_ref,
         teacher_corners=None,
@@ -946,8 +1067,9 @@ class DFINETransformer(nn.Module):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [
-            {
+        outs = []
+        for i, (a, b, c, d) in enumerate(zip(outputs_class, outputs_coord, outputs_corners, outputs_ref)):
+            o = {
                 "pred_logits": a,
                 "pred_boxes": b,
                 "pred_corners": c,
@@ -955,5 +1077,9 @@ class DFINETransformer(nn.Module):
                 "teacher_corners": teacher_corners,
                 "teacher_logits": teacher_logits,
             }
-            for a, b, c, d in zip(outputs_class, outputs_coord, outputs_corners, outputs_ref)
-        ]
+            if outputs_keypoints is not None:
+                o["pred_keypoints"] = outputs_keypoints[i]
+            if outputs_pose_quality is not None:
+                o["pred_pose_quality"] = outputs_pose_quality[i]
+            outs.append(o)
+        return outs

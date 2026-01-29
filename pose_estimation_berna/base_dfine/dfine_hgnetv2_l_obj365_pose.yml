@@ -1,0 +1,26 @@
+__include__: [
+  '../../configs/dataset/coco_detection.yml',
+  '../../configs/runtime.yml',
+  '../../configs/dfine/include/dataloader.yml',
+  '../../configs/dfine/include/optimizer.yml',
+  '../../configs/dfine/include/dfine_hgnetv2_pose.yml',
+]
+
+output_dir: ./output/dfine_hgnetv2_l_obj365_pose
+
+DFINE:
+  backbone: HGNetv2
+
+# HGNetv2-L (B4). This matches the "dfine_l_obj365.pth" backbone size.
+HGNetv2:
+  name: 'B4'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+# Pose head enabled
+DFINETransformer:
+  num_keypoints: 17
+
+

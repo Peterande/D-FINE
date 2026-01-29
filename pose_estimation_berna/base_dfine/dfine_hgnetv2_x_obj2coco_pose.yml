@@ -1,0 +1,32 @@
+__include__: [
+  '../../configs/dataset/coco_detection.yml',
+  '../../configs/runtime.yml',
+  '../../configs/dfine/include/dataloader.yml',
+  '../../configs/dfine/include/optimizer.yml',
+  '../../configs/dfine/include/dfine_hgnetv2_pose.yml',
+]
+
+output_dir: ./output/dfine_hgnetv2_x_obj2coco_pose
+
+DFINE:
+  backbone: HGNetv2
+
+HGNetv2:
+  name: 'B5'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+HybridEncoder:
+  # intra
+  hidden_dim: 384
+  dim_feedforward: 2048
+
+DFINETransformer:
+  feat_channels: [384, 384, 384]
+  reg_scale: 8
+  # Pose head enabled here too (overrides include default if needed)
+  num_keypoints: 17
+
+

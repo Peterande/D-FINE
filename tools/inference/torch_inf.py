@@ -20,16 +20,18 @@ def draw(images, labels, boxes, scores, thrh=0.4):
     for i, im in enumerate(images):
         draw = ImageDraw.Draw(im)
 
-        scr = scores[i]
+        # Detach to avoid autograd warnings when converting to Python scalars for drawing
+        scr = scores[i].detach()
         lab = labels[i][scr > thrh]
         box = boxes[i][scr > thrh]
         scrs = scr[scr > thrh]
 
         for j, b in enumerate(box):
+            b = b.detach().cpu().tolist()
             draw.rectangle(list(b), outline="red")
             draw.text(
                 (b[0], b[1]),
-                text=f"{lab[j].item()} {round(scrs[j].item(), 2)}",
+                text=f"{int(lab[j].detach().cpu().item())} {round(float(scrs[j].detach().cpu().item()), 2)}",
                 fill="blue",
             )
 
@@ -107,7 +109,7 @@ def process_video(model, device, file_path):
 
     cap.release()
     out.release()
-    print("Video processing complete. Result saved as 'results_video.mp4'.")
+    print("Video processing complete. Result saved as 'torch_results.mp4'.")
 
 
 def main(args):
@@ -127,7 +129,17 @@ def main(args):
         raise AttributeError("Only support resume to load model.state_dict by now.")
 
     # Load train mode state and convert to deploy mode
-    cfg.model.load_state_dict(state)
+    # Note: if you use a detection checkpoint with a pose config, the pose head weights will be missing.
+    if getattr(args, "strict", False):
+        cfg.model.load_state_dict(state, strict=True)
+    else:
+        incompatible = cfg.model.load_state_dict(state, strict=False)
+        if incompatible.missing_keys or incompatible.unexpected_keys:
+            print("WARNING: Non-strict checkpoint load.")
+            if incompatible.missing_keys:
+                print(f"  Missing keys (showing up to 20): {incompatible.missing_keys[:20]}")
+            if incompatible.unexpected_keys:
+                print(f"  Unexpected keys (showing up to 20): {incompatible.unexpected_keys[:20]}")
 
     class Model(nn.Module):
         def __init__(self):
@@ -162,5 +174,10 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--resume", type=str, required=True)
     parser.add_argument("-i", "--input", type=str, required=True)
     parser.add_argument("-d", "--device", type=str, default="cpu")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Use strict checkpoint loading (will error if keys don't match). Default: non-strict.",
+    )
     args = parser.parse_args()
     main(args)

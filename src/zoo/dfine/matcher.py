@@ -42,14 +42,86 @@ class HungarianMatcher(nn.Module):
         self.cost_class = weight_dict["cost_class"]
         self.cost_bbox = weight_dict["cost_bbox"]
         self.cost_giou = weight_dict["cost_giou"]
+        self.cost_oks = float(weight_dict.get("cost_oks", 0.0))
 
         self.use_focal_loss = use_focal_loss
         self.alpha = alpha
         self.gamma = gamma
 
         assert (
-            self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0
+            self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0 or self.cost_oks != 0
         ), "all costs cant be 0"
+
+    @staticmethod
+    def _coco_sigmas(device, dtype):
+        # COCO keypoint sigmas (17)
+        sigmas = torch.tensor(
+            [
+                0.26, 0.25, 0.25, 0.35, 0.35,
+                0.79, 0.79, 0.72, 0.72, 0.62,
+                0.62, 1.07, 1.07, 0.87, 0.87,
+                0.89, 0.89,
+            ],
+            device=device,
+            dtype=dtype,
+        )
+        return sigmas
+
+    @torch.no_grad()
+    def _oks_cost(self, pred_boxes, pred_keypoints, tgt_boxes, tgt_keypoints, img_wh):
+        """
+        Compute OKS-based cost matrix for one image.
+        pred_boxes: [Q,4] cxcywh normalized
+        pred_keypoints: [Q,K,3] (x_rel,y_rel,vis_logit)
+        tgt_boxes: [N,4] cxcywh normalized
+        tgt_keypoints: [N,K,3] (x_px,y_px,v)
+        img_wh: (w,h) floats
+        Returns: cost_oks [Q,N] where lower is better (we use -OKS)
+        """
+        if tgt_boxes.numel() == 0:
+            return pred_boxes.new_zeros((pred_boxes.shape[0], 0))
+
+        w, h = img_wh
+        w = max(float(w), 1.0)
+        h = max(float(h), 1.0)
+        wh = pred_boxes.new_tensor([w, h, w, h])
+
+        # boxes to pixel xyxy
+        def cxcywh_to_xyxy(b):
+            cx, cy, bw, bh = b.unbind(-1)
+            x1 = cx - 0.5 * bw
+            y1 = cy - 0.5 * bh
+            x2 = cx + 0.5 * bw
+            y2 = cy + 0.5 * bh
+            return torch.stack([x1, y1, x2, y2], dim=-1)
+
+        pb = cxcywh_to_xyxy(pred_boxes) * wh
+        tb = cxcywh_to_xyxy(tgt_boxes) * wh
+
+        # pred keypoints to pixels using predicted boxes
+        x1y1 = pb[:, None, :2]  # [Q,1,2]
+        pwh = (pb[:, None, 2:] - pb[:, None, :2]).clamp(min=1.0)  # [Q,1,2]
+        pxy = x1y1 + pred_keypoints[..., :2] * pwh  # [Q,K,2]
+
+        gxy = tgt_keypoints[..., :2]  # [N,K,2] in pixels (already resized)
+        gvis = (tgt_keypoints[..., 2] > 0).to(pxy.dtype)  # [N,K]
+
+        # broadcast distances: [Q,N,K]
+        dxy = (pxy[:, None, :, :] - gxy[None, :, :, :])  # [Q,N,K,2]
+        d2 = (dxy**2).sum(-1)  # [Q,N,K]
+
+        # area from target boxes (pixels^2)
+        twh = (tb[:, 2:] - tb[:, :2]).clamp(min=1.0)  # [N,2]
+        area = (twh[:, 0] * twh[:, 1]).clamp(min=1.0)  # [N]
+
+        sigmas = self._coco_sigmas(device=pxy.device, dtype=pxy.dtype)  # [K]
+        vars_ = (sigmas * 2.0) ** 2  # [K]
+        denom = (2.0 * vars_[None, None, :] * area[None, :, None]).clamp(min=1e-6)  # [1,N,K]
+
+        oks = torch.exp(-d2 / denom) * gvis[None, :, :]  # [Q,N,K]
+        vis_cnt = gvis.sum(-1).clamp(min=1.0)  # [N]
+        oks = oks.sum(-1) / vis_cnt[None, :]  # [Q,N]
+        return -oks
 
     @torch.no_grad()
     def forward(self, outputs: Dict[str, torch.Tensor], targets, return_topk=False):
@@ -109,11 +181,45 @@ class HungarianMatcher(nn.Module):
         # Compute the giou cost betwen boxes
         cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
 
+        sizes = [len(v["boxes"]) for v in targets]
+
+        cost_oks = None
+        if self.cost_oks > 0 and ("pred_keypoints" in outputs):
+            # Build a [B*Q, sumN] OKS cost with per-image blocks aligned to target concatenation order.
+            pred_kpts = outputs["pred_keypoints"]  # [B,Q,K,3]
+            sumN = int(tgt_bbox.shape[0])
+            cost_oks = out_bbox.new_zeros((bs * num_queries, sumN))
+
+            col_start = 0
+            for bi, n_t in enumerate(sizes):
+                col_end = col_start + int(n_t)
+                if n_t == 0:
+                    col_start = col_end
+                    continue
+                q_boxes = outputs["pred_boxes"][bi]  # [Q,4]
+                q_kpts = pred_kpts[bi]  # [Q,K,3]
+                t_boxes = targets[bi]["boxes"]  # [N,4]
+                t_kpts = targets[bi].get("keypoints", None)
+                if t_kpts is None:
+                    col_start = col_end
+                    continue
+                if "size" in targets[bi]:
+                    hh, ww = targets[bi]["size"].tolist()
+                    img_wh = (ww, hh)
+                else:
+                    ww, hh = targets[bi]["orig_size"].tolist()
+                    img_wh = (ww, hh)
+                block = self._oks_cost(q_boxes, q_kpts, t_boxes, t_kpts, img_wh)  # [Q,N]
+                row_start = bi * num_queries
+                row_end = row_start + num_queries
+                cost_oks[row_start:row_end, col_start:col_end] = block.to(cost_oks.dtype)
+                col_start = col_end
+
         # Final cost matrix 3 * self.cost_bbox + 2 * self.cost_class + self.cost_giou
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
+        if cost_oks is not None:
+            C = C + (self.cost_oks * cost_oks)
         C = C.view(bs, num_queries, -1).cpu()
-
-        sizes = [len(v["boxes"]) for v in targets]
         C = torch.nan_to_num(C, nan=1.0)
         indices_pre = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
         indices = [

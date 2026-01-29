@@ -10,3 +10,6 @@ datasets/
 outputs
 *.engine
 venv/
+.history/
+pose_debug_*.jpg
+pose_test*.jpg

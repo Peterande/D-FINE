@@ -1,0 +1,87 @@
+# Lightweight Configuration for D-FINE Pose (COCO-17)
+# Optimized for speed and low memory usage
+
+# Inherit from base configuration
+base: "base.yaml"
+
+# Model Tier
+tier: "lightweight"
+
+model: {}
+
+# Training Configuration Overrides
+training:
+  batch_size: 12  # Can use larger batch due to smaller model
+  epochs: 40
+  learning_rate: 0.00005
+  
+  freeze_detection: true
+  augmentation_strength: "strong"
+  
+  # Simplified unfreezing strategy
+  unfreeze_epoch: 30
+  backbone_lr_factor: 0.1
+
+# Loss Configuration for Lightweight Tier
+loss:
+  type: "lightweight"
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.3  # Reduced complexity
+  ce_weight: 0.1
+  # No boundary loss for speed
+
+# Performance Targets
+targets:
+  accuracy:
+    miou: 0.60  # Lower than standard but still good
+    pixel_accuracy: 0.80
+  
+  speed:
+    min_fps: 60  # High FPS target
+    max_latency_ms: 16  # Very low latency
+  
+  memory:
+    max_gpu_mb: 2000  # Very low memory usage
+    max_model_mb: 50   # Small model size
+
+# Output Configuration
+output:
+  base_dir: "outputs/lightweight"
+  
+# Logging Configuration
+logging:
+  wandb:
+    project: "dfine-lightweight-segmentation"
+    tags: ["lightweight", "edge", "fast"]
+
+# TensorRT Configuration for Lightweight Tier
+tensorrt:
+  fp16: true
+  int8: true
+  workspace_gb: 2  # Reduced workspace
+  
+  # Lightweight tier optimization
+  optimization_level: 5  # Maximum optimization
+  enable_dla: true  # Enable DLA for edge devices
+  
+  # Smaller input size for speed
+  input_shape: [1, 3, 512, 512]  # Reduced from 640x640
+  
+  calibration:
+    mode: "pascal"  # Pascal-only for consistency
+    max_images: 300  # Fewer calibration images
+
+# Platform-specific optimizations
+platform:
+  edge_devices:
+    jetson_nano: true
+    jetson_xavier: true
+    raspberry_pi: false  # Too resource constrained
+  
+  mobile:
+    android: true
+    ios: true
+  
+  embedded:
+    custom_asic: true

@@ -1,0 +1,145 @@
+# Advanced Configuration for D-FINE Pose (COCO-17)
+# Maximum accuracy and robustness
+
+# Inherit from base configuration
+base: "base.yaml"
+
+# Model Tier
+tier: "advanced"
+
+model: {}
+
+# Training Configuration Overrides
+training:
+  batch_size: 4  # Smaller batch due to larger model
+  epochs: 60
+  learning_rate: 0.00003
+  
+  # Advanced tier specific settings
+  multi_scale_training: true
+  augmentation_strength: "strong"
+  
+  # Progressive training
+  progressive_resizing: true
+  
+  # Advanced unfreezing strategy
+  unfreeze_epoch1: 30  # First backbone stage
+  unfreeze_epoch2: 45  # Second backbone stage
+  backbone_lr_factor: 0.05  # Very low backbone LR
+
+# Loss Configuration for Advanced Tier
+loss:
+  type: "advanced"
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.3
+  tversky_weight: 0.2  # Additional loss component
+  ce_weight: 0.1
+  boundary_weight: 0.3
+  size_weight: 0.1  # For distant objects
+
+# Advanced Training Techniques
+advanced_training:
+  # Deep supervision
+  deep_supervision:
+    aux_loss_weight: 0.4
+    num_aux_outputs: 2
+  
+  # Attention mechanisms
+  attention:
+    self_attention: true
+    channel_attention: true
+    spatial_attention: true
+    attention_gates: true
+  
+  # Multi-scale inference
+  multiscale_inference:
+    scales: [0.75, 1.0, 1.25]
+    ensemble_method: "average"
+
+# Performance Targets
+targets:
+  accuracy:
+    miou: 0.80  # Highest accuracy target
+    pixel_accuracy: 0.90
+    class_consistency: 0.85
+  
+  speed:
+    min_fps: 15  # Lower FPS acceptable for max accuracy
+    max_latency_ms: 70  # Higher latency acceptable
+  
+  memory:
+    max_gpu_mb: 8000  # High memory usage acceptable
+    max_model_mb: 400  # Large model size
+
+# Output Configuration
+output:
+  base_dir: "outputs/advanced"
+  save_intermediate: true  # Save auxiliary outputs
+  
+# Logging Configuration
+logging:
+  wandb:
+    project: "dfine-advanced-segmentation"
+    tags: ["advanced", "high-accuracy", "robust"]
+  
+  detailed_metrics: true
+  save_attention_maps: true
+
+# TensorRT Configuration for Advanced Tier
+tensorrt:
+  fp16: true
+  int8: true
+  workspace_gb: 8  # Large workspace for optimization
+  
+  # Advanced tier optimization
+  optimization_level: 5  # Maximum optimization
+  enable_dla: false  # DLA not needed for high-end GPUs
+  
+  # Larger input size for accuracy
+  input_shape: [1, 3, 768, 768]  # Increased from 640x640
+  
+  # Multi-scale TensorRT
+  multiscale_engines: true
+  scales: [640, 768, 896]
+  
+  calibration:
+    mode: "mixed"  # Mixed dataset for robustness
+    max_images: 1000  # More calibration images
+    pascal_ratio: 0.6  # Balanced mix
+
+# Platform Configuration
+platform:
+  high_end_gpu:
+    rtx_4090: true
+    rtx_3090: true
+    tesla_v100: true
+    a100: true
+  
+  server:
+    multi_gpu: true
+    distributed_training: true
+  
+  workstation:
+    content_creation: true
+    research: true
+
+# Advanced Features
+features:
+  # Robustness enhancements
+  robustness:
+    weather_adaptation: true
+    lighting_adaptation: true
+    distance_optimization: true
+    
+  # Quality enhancements
+  quality:
+    boundary_refinement: true
+    temporal_consistency: true
+    multi_scale_fusion: true
+    
+  # Analysis features
+  analysis:
+    uncertainty_estimation: true
+    failure_detection: true
+    confidence_calibration: true
