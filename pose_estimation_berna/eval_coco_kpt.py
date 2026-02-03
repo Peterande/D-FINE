@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import torch
+import torchvision
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import yaml
@@ -27,6 +28,19 @@ from pose_estimation_berna.core.datasets import create_coco_pose_dataset  # noqa
 from pose_estimation_berna.train import deep_merge_dict, load_config, pose_collate_fn  # noqa: E402
 
 
+COCO_KEYPOINT_FLIP_INDEX = [
+    0,  # nose
+    2, 1,  # left_eye <-> right_eye
+    4, 3,  # left_ear <-> right_ear
+    6, 5,  # left_shoulder <-> right_shoulder
+    8, 7,  # left_elbow <-> right_elbow
+    10, 9,  # left_wrist <-> right_wrist
+    12, 11,  # left_hip <-> right_hip
+    14, 13,  # left_knee <-> right_knee
+    16, 15,  # left_ankle <-> right_ankle
+]
+
+
 def _load_state(path: str) -> dict:
     state = torch.load(path, map_location="cpu")
     if isinstance(state, dict):
@@ -37,6 +51,149 @@ def _load_state(path: str) -> dict:
     return state
 
 
+def _remap_labels_to_coco_category(labels: torch.Tensor) -> torch.Tensor:
+    # D-FINE labels are contiguous 0..79; COCO evaluator expects category_id (person==1).
+    from src.data.dataset import mscoco_label2category
+
+    flat = labels.flatten()
+    mapped = torch.tensor([mscoco_label2category[int(x.item())] for x in flat], device=labels.device)
+    return mapped.view_as(labels)
+
+
+def _postprocess_raw(
+    outputs: dict,
+    orig_target_sizes: torch.Tensor,
+    num_classes: int = 80,
+    num_top_queries: int = 300,
+    remap_mscoco_category: bool = True,
+) -> list[dict]:
+    """
+    Like DFINEPostProcessor, but keeps bbox-relative keypoints (pred_keypoints) so we can
+    do flip-TTA and GT-bbox oracle projection during evaluation.
+    Returns list of dicts with keys: labels, boxes (xyxy px), scores, keypoints_rel (bbox-rel, optional).
+    """
+    logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
+    keypoints_rel = outputs.get("pred_keypoints", None)
+    pose_quality = outputs.get("pred_pose_quality", None)
+
+    bbox_px = torchvision.ops.box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
+    bbox_px = bbox_px * orig_target_sizes.repeat(1, 2).unsqueeze(1)
+
+    scores_all = torch.sigmoid(logits)  # [B,Q,C]
+    scores, flat_index = torch.topk(scores_all.flatten(1), int(num_top_queries), dim=-1)
+    labels = torch.remainder(flat_index, int(num_classes))
+    q_index = flat_index // int(num_classes)
+
+    boxes_sel = bbox_px.gather(dim=1, index=q_index.unsqueeze(-1).repeat(1, 1, 4))
+    kpt_sel = None
+    if keypoints_rel is not None:
+        kpt_sel = keypoints_rel.gather(
+            dim=1,
+            index=q_index.unsqueeze(-1).unsqueeze(-1).repeat(
+                1, 1, keypoints_rel.shape[-2], keypoints_rel.shape[-1]
+            ),
+        )
+    if pose_quality is not None:
+        pq_sel = pose_quality.gather(
+            dim=1, index=q_index.unsqueeze(-1).repeat(1, 1, pose_quality.shape[-1])
+        )
+        scores = scores * torch.sigmoid(pq_sel.squeeze(-1))
+
+    if remap_mscoco_category:
+        labels = _remap_labels_to_coco_category(labels)
+
+    # clip boxes to image bounds
+    w_img = orig_target_sizes[:, 0].to(boxes_sel.dtype).view(-1, 1)
+    h_img = orig_target_sizes[:, 1].to(boxes_sel.dtype).view(-1, 1)
+    x1 = boxes_sel[..., 0].clamp(min=0.0)
+    y1 = boxes_sel[..., 1].clamp(min=0.0)
+    x2 = boxes_sel[..., 2].clamp(min=0.0)
+    y2 = boxes_sel[..., 3].clamp(min=0.0)
+    x1 = torch.minimum(x1, w_img)
+    x2 = torch.minimum(x2, w_img)
+    y1 = torch.minimum(y1, h_img)
+    y2 = torch.minimum(y2, h_img)
+    x_min = torch.minimum(x1, x2)
+    y_min = torch.minimum(y1, y2)
+    x_max = torch.maximum(x1, x2)
+    y_max = torch.maximum(y1, y2)
+    boxes_sel = torch.stack([x_min, y_min, x_max, y_max], dim=-1)
+
+    out: list[dict] = []
+    for bi in range(labels.shape[0]):
+        d = {"labels": labels[bi], "boxes": boxes_sel[bi], "scores": scores[bi]}
+        if kpt_sel is not None:
+            d["keypoints_rel"] = kpt_sel[bi]
+        out.append(d)
+    return out
+
+
+def _decode_keypoints_abs(
+    boxes_xyxy_px: torch.Tensor, keypoints_rel: torch.Tensor, orig_target_size_wh: torch.Tensor
+) -> torch.Tensor:
+    x1y1 = boxes_xyxy_px[:, None, :2]
+    wh = (boxes_xyxy_px[:, None, 2:] - boxes_xyxy_px[:, None, :2]).clamp(min=1.0)
+    kpt_xy = x1y1 + keypoints_rel[..., :2] * wh
+    kpt_score = torch.sigmoid(keypoints_rel[..., 2])
+
+    w = orig_target_size_wh[0].to(kpt_xy.dtype).clamp(min=1.0)
+    h = orig_target_size_wh[1].to(kpt_xy.dtype).clamp(min=1.0)
+    kx = torch.minimum(kpt_xy[..., 0].clamp(min=0.0), w)
+    ky = torch.minimum(kpt_xy[..., 1].clamp(min=0.0), h)
+    kpt_xy = torch.stack([kx, ky], dim=-1)
+    return torch.cat([kpt_xy, kpt_score[..., None]], dim=-1)
+
+
+def _gt_boxes_xyxy_px(target: dict, orig_target_size_wh: torch.Tensor) -> torch.Tensor:
+    gt_cxcywh = target["boxes"]
+    gt_xyxy = torchvision.ops.box_convert(gt_cxcywh, in_fmt="cxcywh", out_fmt="xyxy")
+    gt_xyxy = gt_xyxy * orig_target_size_wh.repeat(2)
+    return gt_xyxy
+
+
+def _apply_oracle_gt_boxes(
+    pred_boxes_xyxy_px: torch.Tensor,
+    pred_scores: torch.Tensor,
+    pred_keypoints_rel: torch.Tensor | None,
+    target: dict,
+    orig_target_size_wh: torch.Tensor,
+    iou_thr: float,
+) -> tuple[torch.Tensor, torch.Tensor | None]:
+    gt_boxes = _gt_boxes_xyxy_px(target, orig_target_size_wh)
+    if gt_boxes.numel() == 0 or pred_boxes_xyxy_px.numel() == 0:
+        if pred_keypoints_rel is None:
+            return pred_boxes_xyxy_px, None
+        return pred_boxes_xyxy_px, _decode_keypoints_abs(
+            pred_boxes_xyxy_px, pred_keypoints_rel, orig_target_size_wh
+        )
+
+    ious = torchvision.ops.box_iou(pred_boxes_xyxy_px, gt_boxes)  # [P,G]
+    order = torch.argsort(pred_scores, descending=True)
+    used_gt = torch.zeros((gt_boxes.shape[0],), dtype=torch.bool, device=gt_boxes.device)
+
+    boxes_out = pred_boxes_xyxy_px.clone()
+    kpts_abs = (
+        None
+        if pred_keypoints_rel is None
+        else _decode_keypoints_abs(boxes_out, pred_keypoints_rel, orig_target_size_wh)
+    )
+
+    for pi in order.tolist():
+        gi = int(torch.argmax(ious[pi]).item())
+        if used_gt[gi]:
+            continue
+        if float(ious[pi, gi].item()) < float(iou_thr):
+            continue
+        used_gt[gi] = True
+        boxes_out[pi] = gt_boxes[gi]
+        if pred_keypoints_rel is not None:
+            kpts_abs[pi : pi + 1] = _decode_keypoints_abs(
+                boxes_out[pi : pi + 1], pred_keypoints_rel[pi : pi + 1], orig_target_size_wh
+            )
+
+    return boxes_out, kpts_abs
+
+
 @torch.no_grad()
 def evaluate_one(
     cfg: dict,
@@ -45,6 +202,10 @@ def evaluate_one(
     num_workers: int | None,
     max_val_samples: int | None,
     max_val_steps: int | None,
+    flip_tta: bool = False,
+    oracle_gt_boxes: bool = False,
+    oracle_iou_thr: float = 0.5,
+    nms_iou_thr: float = 0.6,
 ) -> float:
     from src.core import YAMLConfig
     from faster_coco_eval import COCO
@@ -62,11 +223,15 @@ def evaluate_one(
         df_cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
 
     model = df_cfg.model.to(device).eval()
+    # Allow variable-resolution eval by disabling fixed eval_spatial_size (pos-embed cache).
+    for m in model.modules():
+        if hasattr(m, "eval_spatial_size"):
+            try:
+                m.eval_spatial_size = None
+            except Exception:
+                pass
     state = _load_state(checkpoint_path)
     model.load_state_dict(state, strict=False)
-
-    post = df_cfg.postprocessor.to(device).eval()
-    post.remap_mscoco_category = True  # person category_id == 1
 
     root_dir = cfg["dataset"]["root_dir"]
     root_dir = str((repo_root / root_dir) if not str(root_dir).startswith("/") else root_dir)
@@ -107,30 +272,86 @@ def evaluate_one(
     for step, (images, targets) in enumerate(tqdm(val_loader, total=total, desc="COCOeval")):
         images = images.to(device, non_blocking=(device.type == "cuda"))
         outputs = model(images)
+        if flip_tta:
+            images_f = torch.flip(images, dims=[-1])
+            out_f = model(images_f)
+            # unflip normalized outputs
+            if "pred_boxes" in out_f and out_f["pred_boxes"] is not None:
+                out_f["pred_boxes"] = out_f["pred_boxes"].clone()
+                out_f["pred_boxes"][..., 0] = 1.0 - out_f["pred_boxes"][..., 0]
+            if "pred_keypoints" in out_f and out_f["pred_keypoints"] is not None:
+                k = out_f["pred_keypoints"].clone()
+                k[..., 0] = 1.0 - k[..., 0]
+                k = k[..., COCO_KEYPOINT_FLIP_INDEX, :]
+                out_f["pred_keypoints"] = k
+
+            outputs = dict(outputs)
+            for kk in ["pred_logits", "pred_boxes", "pred_keypoints", "pred_pose_quality"]:
+                if kk in outputs and kk in out_f and outputs[kk] is not None and out_f[kk] is not None:
+                    outputs[kk] = torch.cat([outputs[kk], out_f[kk]], dim=1)
+
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0).to(device)
-        preds = post(outputs, orig_target_sizes)  # list[dict]
+        num_top = int(df_cfg.yaml_cfg.get("DFINEPostProcessor", {}).get("num_top_queries", 300))
+        preds = _postprocess_raw(
+            outputs,
+            orig_target_sizes=orig_target_sizes,
+            num_classes=int(cfg.get("dfine", {}).get("num_classes", 80)),
+            num_top_queries=num_top,
+            remap_mscoco_category=True,
+        )
 
         for t, p in zip(targets, preds):
             img_id = int(t["image_id"].reshape(-1)[0].detach().cpu().item())
             boxes = p["boxes"].detach().cpu()
             scores = p["scores"].detach().cpu()
             labels = p["labels"].detach().cpu()
-            kpts = p.get("keypoints", None)
-            if kpts is None:
+            kpts_rel = p.get("keypoints_rel", None)
+            if kpts_rel is not None:
+                kpts_rel = kpts_rel.detach().cpu()
+
+            # Keep only person detections (COCO category_id == 1)
+            person_mask = labels == 1
+            boxes = boxes[person_mask]
+            scores = scores[person_mask]
+            labels = labels[person_mask]
+            if kpts_rel is not None:
+                kpts_rel = kpts_rel[person_mask]
+
+            # Merge duplicates (especially important for flip-TTA) using NMS.
+            if boxes.numel() > 0 and float(nms_iou_thr) > 0:
+                keep = torchvision.ops.nms(boxes, scores, float(nms_iou_thr))
+                boxes = boxes[keep]
+                scores = scores[keep]
+                labels = labels[keep]
+                if kpts_rel is not None:
+                    kpts_rel = kpts_rel[keep]
+
+            if kpts_rel is None:
                 kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
             else:
-                kpts = kpts.detach().cpu()
+                if oracle_gt_boxes:
+                    boxes, kpts = _apply_oracle_gt_boxes(
+                        pred_boxes_xyxy_px=boxes,
+                        pred_scores=scores,
+                        pred_keypoints_rel=kpts_rel,
+                        target=t,
+                        orig_target_size_wh=t["orig_size"].detach().cpu(),
+                        iou_thr=float(oracle_iou_thr),
+                    )
+                    if kpts is None:
+                        kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
+                else:
+                    kpts = _decode_keypoints_abs(boxes, kpts_rel, t["orig_size"].detach().cpu())
             # evaluator expects keypoints as [x,y,v]; force v=1 to avoid treating low confidence as invisibility
             if kpts.numel() > 0 and kpts.shape[-1] == 3:
                 kpts = kpts.clone()
                 kpts[..., 2] = 1.0
 
-            person_mask = labels == 1
             coco_predictions[img_id] = {
-                "boxes": boxes[person_mask],
-                "scores": scores[person_mask],
-                "labels": labels[person_mask],
-                "keypoints": kpts[person_mask],
+                "boxes": boxes,
+                "scores": scores,
+                "labels": labels,
+                "keypoints": kpts,
             }
 
         if max_val_steps is not None and (step + 1) >= int(max_val_steps):
@@ -154,6 +375,20 @@ def parse_args():
     p.add_argument("--num-workers", type=int, default=None)
     p.add_argument("--max-val-samples", type=int, default=None)
     p.add_argument("--max-val-steps", type=int, default=None)
+    p.add_argument("--flip-tta", action="store_true", help="Enable horizontal flip test-time augmentation.")
+    p.add_argument(
+        "--oracle-gt-boxes",
+        action="store_true",
+        help="Diagnostic: match preds to GT boxes by IoU and re-project keypoints using GT boxes.",
+    )
+    p.add_argument("--oracle-iou-thr", type=float, default=0.5, help="IoU threshold for GT-box oracle matching.")
+    p.add_argument("--nms-iou", type=float, default=0.6, help="Box NMS IoU threshold (use 0 to disable).")
+    p.add_argument(
+        "--image-size",
+        type=int,
+        default=None,
+        help="Override config dataset.image_size (square resize). Example: --image-size 896",
+    )
     return p.parse_args()
 
 
@@ -161,6 +396,10 @@ def main():
     args = parse_args()
     cfg = load_config(args.tier, args.config_dir)
     cfg["tier"] = args.tier
+    if args.image_size is not None:
+        cfg.setdefault("dataset", {})
+        cfg["dataset"]["image_size"] = int(args.image_size)
+        print(f"🖼️ Overriding dataset.image_size -> {cfg['dataset']['image_size']}")
     device = torch.device(args.device if (args.device == "cpu" or torch.cuda.is_available()) else "cpu")
     print(f"🚀 Evaluating on device: {device}")
 
@@ -175,11 +414,13 @@ def main():
             num_workers=args.num_workers,
             max_val_samples=args.max_val_samples,
             max_val_steps=args.max_val_steps,
+            flip_tta=bool(args.flip_tta),
+            oracle_gt_boxes=bool(args.oracle_gt_boxes),
+            oracle_iou_thr=float(args.oracle_iou_thr),
+            nms_iou_thr=float(args.nms_iou),
         )
         print(f"✅ {ckpt_path}: COCO-AP(kpt)={ap:.3f}")
 
 
 if __name__ == "__main__":
     main()
-
-
