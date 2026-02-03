@@ -66,7 +66,10 @@ system:
 # Output Configuration
 output:
   base_dir: "outputs/standard"
-  save_every: 10
+  # Save a full checkpoint every epoch so we can later pick best-by-AP even if
+  # in-training COCOeval is disabled or the process crashes.
+  # NOTE: this can consume a lot of disk space (checkpoints are large).
+  save_every: 1
   save_best: true
 
 # Logging Configuration

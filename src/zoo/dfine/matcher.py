@@ -57,10 +57,10 @@ class HungarianMatcher(nn.Module):
         # COCO keypoint sigmas (17)
         sigmas = torch.tensor(
             [
-                0.26, 0.25, 0.25, 0.35, 0.35,
-                0.79, 0.79, 0.72, 0.72, 0.62,
-                0.62, 1.07, 1.07, 0.87, 0.87,
-                0.89, 0.89,
+                0.026, 0.025, 0.025, 0.035, 0.035,
+                0.079, 0.079, 0.072, 0.072, 0.062,
+                0.062, 0.107, 0.107, 0.087, 0.087,
+                0.089, 0.089,
             ],
             device=device,
             dtype=dtype,
@@ -114,7 +114,14 @@ class HungarianMatcher(nn.Module):
         twh = (tb[:, 2:] - tb[:, :2]).clamp(min=1.0)  # [N,2]
         area = (twh[:, 0] * twh[:, 1]).clamp(min=1.0)  # [N]
 
-        sigmas = self._coco_sigmas(device=pxy.device, dtype=pxy.dtype)  # [K]
+        # Per-keypoint sigmas. If custom K != 17, extend by repeating last sigma.
+        K = int(pxy.shape[1])
+        sigmas = self._coco_sigmas(device=pxy.device, dtype=pxy.dtype)  # [17]
+        if K > int(sigmas.numel()):
+            sigmas = torch.cat(
+                [sigmas, sigmas.new_full((K - int(sigmas.numel()),), float(sigmas[-1]))], dim=0
+            )
+        sigmas = sigmas[:K]  # [K]
         vars_ = (sigmas * 2.0) ** 2  # [K]
         denom = (2.0 * vars_[None, None, :] * area[None, :, None]).clamp(min=1e-6)  # [1,N,K]
 

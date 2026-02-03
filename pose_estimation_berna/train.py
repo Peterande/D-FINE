@@ -159,6 +159,12 @@ def parse_args():
     p.add_argument("--train-split", default="train", choices=["train", "val"], help="COCO split for training")
     p.add_argument("--val-split", default="val", choices=["train", "val"], help="COCO split for validation")
     p.add_argument(
+        "--image-size",
+        type=int,
+        default=None,
+        help="Override config dataset.image_size (square resize). Example: --image-size 896",
+    )
+    p.add_argument(
         "--best-metric",
         default="auto",
         choices=["auto", "coco_ap_keypoints", "oks"],
@@ -177,6 +183,11 @@ def main():
 
     args = parse_args()
     cfg = load_config(args.tier, args.config_dir)
+    # Optional overrides (keep config files clean)
+    if args.image_size is not None:
+        cfg.setdefault("dataset", {})
+        cfg["dataset"]["image_size"] = int(args.image_size)
+        print(f"🖼️ Overriding dataset.image_size -> {cfg['dataset']['image_size']}")
 
     device = get_device(args.device)
     print(f"🚀 Using device: {device}")
@@ -248,6 +259,14 @@ def main():
     # avoid re-downloading backbone weights during training script
     if "HGNetv2" in df_cfg.yaml_cfg:
         df_cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
+
+    # If we override image_size (e.g. 896), the default DFINE configs still set
+    # eval_spatial_size=[640,640]. That caches positional embeddings and decoder
+    # anchor masks for 640 and will crash at validation with shape mismatches.
+    # Safer: disable the fixed eval_spatial_size cache and always derive shapes
+    # from the current feature maps.
+    if int(cfg.get("dataset", {}).get("image_size", 640)) != 640 and "eval_spatial_size" in df_cfg.yaml_cfg:
+        df_cfg.yaml_cfg["eval_spatial_size"] = None
 
     model = df_cfg.model.to(device)
 
@@ -547,6 +566,14 @@ def main():
     )
 
     epochs = int(args.epochs) if args.epochs is not None else int(cfg["training"]["epochs"])
+    if epochs <= int(start_epoch):
+        extra = int(start_epoch) + 1 - int(epochs)
+        raise ValueError(
+            f"--epochs={epochs} is <= start_epoch={start_epoch}, so there are 0 epochs to run. "
+            f"Either increase --epochs (e.g. --epochs {start_epoch + 10} to run ~10 more epochs), "
+            f"or omit --epochs to use the config value. "
+            f"(You are short by at least {extra} epoch(s) just to run one epoch.)"
+        )
     grad_accum_steps = (
         int(args.grad_accum_steps)
         if args.grad_accum_steps is not None
@@ -623,7 +650,22 @@ def main():
         int(args.coco_eval_every) if args.coco_eval_every is not None else int(eval_cfg.get("coco_eval_every", 1))
     )
     val_every = max(1, val_every)
-    coco_eval_every = max(1, coco_eval_every)
+    # Allow disabling COCOeval inside training (helps avoid rare segfaults in evaluator/native deps).
+    # Use: --coco-eval-every 0
+    coco_eval_every = int(coco_eval_every)
+    if coco_eval_every < 0:
+        coco_eval_every = 0
+    if coco_eval_every == 0:
+        if coco_evaluator is not None:
+            print("⚠️ Disabling COCOeval inside training (coco_eval_every=0). Use eval_coco_kpt.py for AP(kpt).")
+        coco_evaluator = None
+        if chosen_best_metric == "coco_ap_keypoints":
+            print("⚠️ Best-metric was COCO-AP(kpt) but COCOeval is disabled; switching best-metric to OKS.")
+            chosen_best_metric = "oks"
+            best_metric_name = "oks"
+            best_metric = best_oks
+    else:
+        coco_eval_every = max(1, coco_eval_every)
 
     # Simple wall-clock tracking for global ETA
     run_start_time = time.time()
@@ -708,7 +750,10 @@ def main():
             train_total = min(train_total, int(args.max_train_steps))
         pbar = tqdm(train_loader, total=train_total, desc=f"Epoch {epoch+1}/{epochs}")
         optimizer.zero_grad(set_to_none=True)
+        step = -1
+        did_any_train = False
         for step, (images, targets) in enumerate(pbar):
+            did_any_train = True
             if stop_requested["flag"]:
                 break
             non_blocking = device.type == "cuda" and use_pin_memory
@@ -783,7 +828,7 @@ def main():
                     pass
         # flush remainder if we broke early or epoch length not divisible by grad_accum_steps
         # (only if we have pending grads)
-        if ((step + 1) % grad_accum_steps) != 0:
+        if did_any_train and ((step + 1) % grad_accum_steps) != 0:
             if float(cfg["training"].get("gradient_clipping", 1.0)) > 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(
@@ -824,8 +869,12 @@ def main():
                 interrupt_path,
             )
             print(f"💾 Saved {interrupt_path}")
-            return
-    
+            # Skip validation and exit the epoch loop cleanly.
+            epoch_wall_sec = time.time() - epoch_wall_start
+            completed_epoch_times_sec.append(epoch_wall_sec)
+            print(f"⏲️ Epoch time (interrupted): {timedelta(seconds=int(epoch_wall_sec))}")
+            break
+
         # validation loop (optionally less frequent for speed)
         did_validate = ((epoch - start_epoch) % val_every) == 0 or (epoch + 1) == epochs
         val_ap = None
@@ -964,7 +1013,7 @@ def main():
             metric_val = best_metric if best_metric is not None else float("nan")
             is_best = False
 
-        # Epoch wall-clock summary
+        # Epoch wall-clock summary (always)
         epoch_wall_sec = time.time() - epoch_wall_start
         completed_epoch_times_sec.append(epoch_wall_sec)
         mean_epoch = sum(completed_epoch_times_sec) / float(len(completed_epoch_times_sec))
@@ -979,7 +1028,7 @@ def main():
             f"ETA left: {timedelta(seconds=eta_sec_now)}"
         )
 
-        # Save last again after validation so it includes the latest best-metric bookkeeping.
+        # Save last again after (optional) validation so it includes the latest best-metric bookkeeping.
         torch.save(
             {
                 "epoch": epoch,
@@ -993,7 +1042,7 @@ def main():
             last_path,
         )
 
-        # Save periodic checkpoint
+        # Save periodic checkpoint (always; independent of validation schedule)
         if save_every > 0 and ((epoch + 1) % save_every == 0):
             ckpt_path = out_dir / f"checkpoint_epoch_{epoch+1}.pth"
             torch.save(
@@ -1009,7 +1058,7 @@ def main():
                 ckpt_path,
             )
 
-        # Save best checkpoint
+        # Save best checkpoint (only meaningful when we validated and computed controlling metric)
         if save_best and did_validate and is_best:
             best_path = out_dir / "best.pth"
             torch.save(

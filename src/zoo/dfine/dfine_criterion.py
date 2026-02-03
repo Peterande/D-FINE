@@ -76,15 +76,17 @@ class DFINECriterion(nn.Module):
         self.reg_max = reg_max
         self.num_pos, self.num_neg = None, None
 
-        # COCO keypoint sigmas (17) for OKS computation
+        # COCO keypoint sigmas (17) for OKS computation.
+        # IMPORTANT: COCO uses values around 0.02-0.10 (NOT 0.2-1.0). A 10× larger sigma
+        # makes OKS far too lenient, which can severely distort matching / targets and hurt AP.
         self.register_buffer(
             "_coco_sigmas",
             torch.tensor(
                 [
-                    0.26, 0.25, 0.25, 0.35, 0.35,
-                    0.79, 0.79, 0.72, 0.72, 0.62,
-                    0.62, 1.07, 1.07, 0.87, 0.87,
-                    0.89, 0.89,
+                    0.026, 0.025, 0.025, 0.035, 0.035,
+                    0.079, 0.079, 0.072, 0.072, 0.062,
+                    0.062, 0.107, 0.107, 0.087, 0.087,
+                    0.089, 0.089,
                 ],
                 dtype=torch.float32,
             ),
@@ -195,7 +197,14 @@ class DFINECriterion(nn.Module):
         area = (gt_wh[:, 0] * gt_wh[:, 1]).clamp(min=1.0)  # [M]
 
         d2 = ((pred_xy_px - gt_xy_px) ** 2).sum(-1)  # [M,K]
-        sigmas = self._coco_sigmas.to(device=pred_xy_px.device, dtype=pred_xy_px.dtype)  # [K]
+        # Per-keypoint sigmas. If custom K != 17, extend by repeating last sigma.
+        K = int(pred_xy_px.shape[1])
+        sigmas = self._coco_sigmas.to(device=pred_xy_px.device, dtype=pred_xy_px.dtype)  # [17]
+        if K > int(sigmas.numel()):
+            sigmas = torch.cat(
+                [sigmas, sigmas.new_full((K - int(sigmas.numel()),), float(sigmas[-1]))], dim=0
+            )
+        sigmas = sigmas[:K]  # [K]
         vars_ = (sigmas * 2.0) ** 2  # [K]
         denom = (2.0 * vars_[None, :] * area[:, None]).clamp(min=1e-6)  # [M,K]
         oks = torch.exp(-d2 / denom) * gt_vis
