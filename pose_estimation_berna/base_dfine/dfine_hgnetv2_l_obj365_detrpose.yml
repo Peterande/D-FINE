@@ -1,0 +1,45 @@
+__include__: [
+  '../../configs/dataset/coco_detection.yml',
+  '../../configs/runtime.yml',
+  '../../configs/dfine/include/dataloader.yml',
+  '../../configs/dfine/include/optimizer.yml',
+  '../../configs/dfine/include/dfine_hgnetv2.yml',
+]
+
+output_dir: ./output/dfine_hgnetv2_l_obj365_detrpose
+
+DFINE:
+  backbone: HGNetv2
+  encoder: HybridEncoder
+  decoder: DETRPoseTransformer
+
+HGNetv2:
+  name: 'B4'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+# Pose-only transformer (DETRPose-style)
+DETRPoseTransformer:
+  # Keep v1 compatible with already-started runs/checkpoints.
+  # (Paper-like settings are provided in a separate *_detrpose_paper.yml config.)
+  num_classes: 80
+  hidden_dim: 256
+  num_queries: 300
+  num_decoder_layers: 6
+  dim_feedforward: 1024
+  dropout: 0.0
+  activation: relu
+  num_feature_levels: 3
+  dec_n_points: 4
+  nhead: 8
+  aux_loss: True
+  num_body_points: 17
+  feat_strides: [8, 16, 32]
+  eval_spatial_size: [640, 640]
+  reg_max: 32
+  reg_scale: 4.0
+  dn_number: 20
+  dn_label_noise_ratio: 0.5
+

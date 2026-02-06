@@ -44,8 +44,12 @@ class PoseMetricsTracker:
     def update(self, outputs: Dict[str, torch.Tensor], targets: List[Dict[str, torch.Tensor]], indices):
         """
         Args:
+          Mode A (DFINE pose):
           - outputs["pred_keypoints"]: [B,Q,K,3] (x_rel,y_rel,vis_logit) bbox-relative
           - outputs["pred_boxes"]: [B,Q,4] cxcywh normalized
+
+          Mode B (DETRPose-style pose-only):
+          - outputs["pred_keypoints"]: [B,Q,2K] image-normalized in [0,1] (resized image space)
           - targets[i]["keypoints"]: [N,K,3] (x_px,y_px,v)
           - targets[i]["boxes"]: [N,4] cxcywh normalized
           - indices: list of (src_idx, tgt_idx) from Hungarian matching
@@ -54,7 +58,7 @@ class PoseMetricsTracker:
             return
 
         pred_kpts = outputs["pred_keypoints"]
-        pred_boxes = outputs["pred_boxes"]
+        pred_boxes = outputs.get("pred_boxes", None)
 
         sigmas = COCO_SIGMAS.to(pred_kpts.device)[: self.num_keypoints]
         vars_ = (sigmas * 2) ** 2  # [K]
@@ -63,12 +67,17 @@ class PoseMetricsTracker:
             if src.numel() == 0:
                 continue
 
-            pb = pred_boxes[b, src]  # [M,4]
-            pb_xyxy = _cxcywh_to_xyxy(pb)
-            pb_wh = (pb_xyxy[:, 2:] - pb_xyxy[:, :2]).clamp(min=1e-6)  # [M,2]
-
-            pk = pred_kpts[b, src]  # [M,K,3]
-            pk_xy = pb_xyxy[:, None, :2] + pk[..., :2] * pb_wh[:, None, :]  # [M,K,2] (image-normalized)
+            if pred_boxes is not None and pred_kpts.ndim == 4:
+                # Mode A: bbox-relative
+                pb = pred_boxes[b, src]  # [M,4]
+                pb_xyxy = _cxcywh_to_xyxy(pb)
+                pb_wh = (pb_xyxy[:, 2:] - pb_xyxy[:, :2]).clamp(min=1e-6)  # [M,2]
+                pk = pred_kpts[b, src]  # [M,K,3]
+                pk_xy = pb_xyxy[:, None, :2] + pk[..., :2] * pb_wh[:, None, :]  # [M,K,2] normalized
+            else:
+                # Mode B: image-normalized keypoints [M,2K]
+                pk = pred_kpts[b, src]  # [M,2K]
+                pk_xy = pk.view(pk.shape[0], self.num_keypoints, 2)
 
             tk = targets[b]["keypoints"][tgt].to(pk_xy.device)  # [M,K,3]
             if "size" in targets[b]:

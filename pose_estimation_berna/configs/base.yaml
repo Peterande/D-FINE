@@ -11,8 +11,12 @@ dataset:
 # DFINE Model Configuration
 dfine:
   # IMPORTANT: config must enable DFINETransformer.num_keypoints=17
-  config_path: "base_dfine/dfine_hgnetv2_l_obj365_pose.yml"
+  # DETRPose-style decoder (pose-only transformer) integrated in this repo:
+  # - decoder: DETRPoseTransformer
+  # - outputs: pred_logits + pred_keypoints [B,Q,2K]
+  config_path: "base_dfine/dfine_hgnetv2_l_obj365_detrpose.yml"
   checkpoint_path: "base_dfine/dfine_l_obj365.pth"
+  # Keep v1 runs compatible (paper-like config uses a separate base_dfine yaml).
   num_classes: 80
 
 # Training Configuration

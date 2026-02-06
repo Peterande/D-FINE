@@ -249,6 +249,122 @@ class Track:
     inv_depth_conf: float = 0.0  # 0..1 confidence/consistency proxy
     occluded_conf: float = 0.0   # 0..1 "likely behind occluder" confidence
     occluder_front_frac: float = 0.0  # 0..1 fraction of nearer pixels in predicted region
+    occlusion_dir: str = "none"  # "none" | "bottom_up" (extendable)
+
+    # Full-body reference (helps prevent bbox collapsing during partial occlusion).
+    # Stored in cxcywh pixel space; updated only when we believe the full body is visible.
+    full_ref_cxcywh: Optional[np.ndarray] = None  # [4]
+
+    # Side-occluder boundary (e.g. wall edge) in image x-coordinates.
+    # Used to "snap" the occluded side of the bbox into the occluder for a more realistic full-body region.
+    wall_edge_x: Optional[float] = None
+
+    # Occlusion latch: once we detect partial occlusion (bbox collapse / kpt loss),
+    # keep drawing an occluded "full-body" box for a while even if evidence disappears next frame.
+    occ_latch: int = 0  # frames remaining
+    occ_latch_box_xyxy: Optional[np.ndarray] = None  # [4] stable occluded box to draw while latched
+
+
+_UPPER_KPT_IDXS = np.array(
+    [
+        COCO17["nose"],
+        COCO17["l_eye"],
+        COCO17["r_eye"],
+        COCO17["l_ear"],
+        COCO17["r_ear"],
+        COCO17["l_sho"],
+        COCO17["r_sho"],
+        COCO17["l_elb"],
+        COCO17["r_elb"],
+        COCO17["l_wri"],
+        COCO17["r_wri"],
+    ],
+    dtype=np.int64,
+)
+_LOWER_KPT_IDXS = np.array(
+    [
+        COCO17["l_hip"],
+        COCO17["r_hip"],
+        COCO17["l_kne"],
+        COCO17["r_kne"],
+        COCO17["l_ank"],
+        COCO17["r_ank"],
+    ],
+    dtype=np.int64,
+)
+
+_LEFT_SIDE_KPT_IDXS = np.array(
+    [
+        COCO17["l_sho"],
+        COCO17["l_elb"],
+        COCO17["l_wri"],
+        COCO17["l_hip"],
+        COCO17["l_kne"],
+        COCO17["l_ank"],
+    ],
+    dtype=np.int64,
+)
+_RIGHT_SIDE_KPT_IDXS = np.array(
+    [
+        COCO17["r_sho"],
+        COCO17["r_elb"],
+        COCO17["r_wri"],
+        COCO17["r_hip"],
+        COCO17["r_kne"],
+        COCO17["r_ank"],
+    ],
+    dtype=np.int64,
+)
+
+
+def _count_visible_kpts(kpts: Optional[np.ndarray], idxs: np.ndarray, kpt_thr: float) -> int:
+    if kpts is None or getattr(kpts, "size", 0) == 0:
+        return 0
+    if kpts.ndim != 2 or kpts.shape[1] < 3:
+        return 0
+    K = int(kpts.shape[0])
+    idxs = idxs[(idxs >= 0) & (idxs < K)]
+    if idxs.size == 0:
+        return 0
+    s = kpts[idxs, 2].astype(np.float32)
+    return int(np.sum(s >= float(kpt_thr)))
+
+
+def _estimate_vertical_edge_x(
+    gray_u8: Optional[np.ndarray],
+    *,
+    x_start: int,
+    x_end: int,
+    y_start: int,
+    y_end: int,
+) -> Optional[float]:
+    """
+    Estimate a strong vertical edge position (x) by summing |dI/dx| over a y-range.
+    Returns x in image coordinates or None if not enough data.
+    """
+    if gray_u8 is None or getattr(gray_u8, "size", 0) == 0:
+        return None
+    if gray_u8.ndim != 2:
+        return None
+    H, W = int(gray_u8.shape[0]), int(gray_u8.shape[1])
+    xs = int(np.clip(int(x_start), 0, max(0, W - 2)))
+    xe = int(np.clip(int(x_end), 1, max(1, W - 1)))
+    if xe <= xs + 1:
+        return None
+    ys = int(np.clip(int(y_start), 0, max(0, H - 2)))
+    ye = int(np.clip(int(y_end), 1, max(1, H - 1)))
+    if ye <= ys + 2:
+        return None
+
+    patch = gray_u8[ys:ye, xs:xe].astype(np.int16)  # [h,w]
+    # gradient along x between neighboring columns => shape [h, w-1]
+    gx = np.abs(patch[:, 1:] - patch[:, :-1]).astype(np.int32)
+    col_score = np.sum(gx, axis=0)  # [w-1]
+    if col_score.size < 2:
+        return None
+    j = int(np.argmax(col_score))
+    # edge lies between columns (xs+j) and (xs+j+1); return as float x
+    return float(xs + j + 0.5)
 
 
 class _KalmanFilter2D:
@@ -648,6 +764,18 @@ class KalmanTracker:
         depth_score_decay_occluded: float = 0.995,
         depth_process_noise: float = 1e-3,
         depth_measurement_noise: float = 2e-2,
+        # Keypoint-based "full-body bbox" under partial occlusion (no retraining).
+        full_body_bbox: bool = False,
+        full_body_upper_min: int = 4,
+        full_body_lower_max: int = 1,
+        full_body_lower_update_min: int = 3,
+        full_body_min_width_ratio: float = 0.70,
+        full_body_wall_snap: bool = False,
+        wall_snap_search_px: int = 80,
+        wall_snap_pad_px: int = 6,
+        wall_snap_ema: float = 0.85,
+        occ_latch_expand_x: float = 0.25,
+        occ_latch_expand_y: float = 0.25,
     ):
         self.iou_threshold = float(iou_threshold)
         self.oks_threshold = float(oks_threshold)
@@ -695,6 +823,20 @@ class KalmanTracker:
         self.depth_process_noise = float(max(1e-8, depth_process_noise))
         self.depth_measurement_noise = float(max(1e-8, depth_measurement_noise))
 
+        self.full_body_bbox = bool(full_body_bbox)
+        self.full_body_upper_min = max(0, int(full_body_upper_min))
+        self.full_body_lower_max = max(0, int(full_body_lower_max))
+        self.full_body_lower_update_min = max(0, int(full_body_lower_update_min))
+        self.full_body_min_width_ratio = float(np.clip(float(full_body_min_width_ratio), 0.1, 1.0))
+        self.full_body_wall_snap = bool(full_body_wall_snap)
+        self.wall_snap_search_px = int(max(10, wall_snap_search_px))
+        self.wall_snap_pad_px = int(max(0, wall_snap_pad_px))
+        self.wall_snap_ema = float(np.clip(float(wall_snap_ema), 0.0, 0.999))
+        # When occlusion latch triggers, optionally expand the latched box in the occlusion direction.
+        # Values are fractions of the stored full-body width/height (fallback to current box size).
+        self.occ_latch_expand_x = float(np.clip(float(occ_latch_expand_x), 0.0, 2.0))
+        self.occ_latch_expand_y = float(np.clip(float(occ_latch_expand_y), 0.0, 2.0))
+
         self._next_id = 1
         self._tracks: List[KalmanTrack] = []
 
@@ -740,6 +882,7 @@ class KalmanTracker:
         img_wh: Optional[Tuple[int, int]] = None,  # (w,h) for deterministic out-of-frame termination
         det_inv_depth: Optional[np.ndarray] = None,  # [N] inverse depth proxy per detection (aligned with det_boxes)
         inv_depth_map: Optional[np.ndarray] = None,  # [H,W] inverse depth proxy for current frame
+        frame_gray: Optional[np.ndarray] = None,  # [H,W] uint8 grayscale (for wall-edge snapping)
     ) -> List[KalmanTrack]:
         # 1) predict all tracks forward + age (occlusion-aware)
         ttl_frames = int(min(float(self.max_age), round(self.occlusion_ttl_sec * float(self.fps))))
@@ -747,6 +890,9 @@ class KalmanTracker:
         for t in self._tracks:
             t.age += 1
             t.time_since_update += 1
+            # decay occlusion latch timer
+            if hasattr(t, "occ_latch"):
+                t.occ_latch = int(max(0, int(getattr(t, "occ_latch", 0)) - 1))
             if t.kf is not None:
                 # Inflate uncertainty during occlusion (time_since_update > 0)
                 miss = int(max(0, t.time_since_update))
@@ -791,6 +937,47 @@ class KalmanTracker:
                         t.kf.x[1, 0] = np.float32(cy)
                         t.kf.x[2, 0] = np.float32(w)
                         t.kf.x[3, 0] = np.float32(h)
+                        pred = t.kf.get_state()
+
+                # Optional: snap the occluded side of the bbox to a stored wall edge (sideways occlusion),
+                # while keeping the full-body width from the reference.
+                if (
+                    self.full_body_wall_snap
+                    and miss > 0
+                    and t.wall_edge_x is not None
+                    and t.full_ref_cxcywh is not None
+                    and str(getattr(t, "occlusion_dir", "none")).startswith("sideways_")
+                ):
+                    try:
+                        full_w = float(max(1.0, float(t.full_ref_cxcywh[2])))
+                    except Exception:
+                        full_w = 0.0
+                    if full_w > 1.0:
+                        x_wall = float(t.wall_edge_x)
+                        pad = float(self.wall_snap_pad_px)
+                        # Use current predicted y1/y2 from KF, but adjust x1/x2.
+                        x1p, y1p, x2p, y2p = [float(v) for v in _cxcywh_to_xyxy(pred).tolist()]
+                        if str(t.occlusion_dir) == "sideways_left":
+                            # occluder on left: snap left edge near wall edge, extend right by full_w
+                            x1p = x_wall - pad
+                            x2p = x1p + full_w
+                        else:
+                            # sideways_right: occluder on right
+                            x2p = x_wall + pad
+                            x1p = x2p - full_w
+                        if img_wh is not None:
+                            iw, ih = int(img_wh[0]), int(img_wh[1])
+                            x1p = float(np.clip(x1p, 0.0, float(iw - 1)))
+                            x2p = float(np.clip(x2p, 0.0, float(iw)))
+                            y1p = float(np.clip(y1p, 0.0, float(ih - 1)))
+                            y2p = float(np.clip(y2p, 0.0, float(ih)))
+                        t.box_xyxy = np.array([x1p, y1p, x2p, y2p], dtype=np.float32)
+                        # Also reflect into KF state so following predictions are consistent.
+                        pred2 = _xyxy_to_cxcywh(t.box_xyxy)
+                        t.kf.x[0, 0] = np.float32(pred2[0])
+                        t.kf.x[1, 0] = np.float32(pred2[1])
+                        t.kf.x[2, 0] = np.float32(pred2[2])
+                        t.kf.x[3, 0] = np.float32(pred2[3])
                         pred = t.kf.get_state()
 
                 t.box_xyxy = _cxcywh_to_xyxy(pred)
@@ -915,6 +1102,293 @@ class KalmanTracker:
         for ti, di in matches:
             t = self._tracks[ti]
             cur_box = det_boxes_xyxy[di].astype(np.float32)
+            raw_box = cur_box.copy()  # keep detector measurement before any occlusion expansion
+            cur_kpt = None
+            if det_keypoints is not None:
+                cur_kpt = det_keypoints[di].astype(np.float32)
+
+            # Partial-occlusion handling (bottom-up): if upper body is visible but legs disappear,
+            # keep drawing / tracking a full-body bbox "through" the occluder.
+            # This prevents footline + full-body reference from collapsing upwards when someone walks behind a chair.
+            t.occlusion_dir = "none"
+            if self.full_body_bbox and cur_kpt is not None:
+                upper_vis = _count_visible_kpts(cur_kpt, _UPPER_KPT_IDXS, kpt_thr=self.kpt_thr)
+                lower_vis = _count_visible_kpts(cur_kpt, _LOWER_KPT_IDXS, kpt_thr=self.kpt_thr)
+                left_vis = _count_visible_kpts(cur_kpt, _LEFT_SIDE_KPT_IDXS, kpt_thr=self.kpt_thr)
+                right_vis = _count_visible_kpts(cur_kpt, _RIGHT_SIDE_KPT_IDXS, kpt_thr=self.kpt_thr)
+
+                # Update "full-body reference" only when both sides + lower body are sufficiently visible.
+                # This is the key fix for sideways occlusion: don't let the reference shrink to a sliver.
+                full_ref_ok = (
+                    (upper_vis >= int(self.full_body_upper_min))
+                    and (lower_vis >= int(self.full_body_lower_update_min))
+                    and (left_vis >= 2)
+                    and (right_vis >= 2)
+                )
+                if full_ref_ok:
+                    meas_raw = _xyxy_to_cxcywh(raw_box)
+                    t.full_ref_cxcywh = meas_raw.astype(np.float32)
+                    # Also refresh stable footline + last_visible full-body box for freeze policy.
+                    t.y_foot_ref = float(raw_box[3])
+                    t.last_visible_box_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+
+                bottom_up = (upper_vis >= int(self.full_body_upper_min)) and (lower_vis <= int(self.full_body_lower_max))
+                # Sideways occlusion: one side visible, the other missing (e.g. behind a wall edge).
+                sideways_left_hidden = (right_vis >= 3) and (left_vis <= 1)
+                sideways_right_hidden = (left_vis >= 3) and (right_vis <= 1)
+
+                if bottom_up:
+                    t.occlusion_dir = "bottom_up"
+                    # Prefer last measured full-body size if available.
+                    ref = t.full_ref_cxcywh if t.full_ref_cxcywh is not None else t.last_meas_cxcywh
+                    if ref is not None:
+                        last_w = float(max(1.0, float(ref[2])))
+                        last_h = float(max(1.0, float(ref[3])))
+                        cx = 0.5 * float(cur_box[0] + cur_box[2])
+                        y1 = float(cur_box[1])  # keep current top (head/upper torso)
+                        y2 = y1 + last_h
+                        if t.y_foot_ref is not None and np.isfinite(float(t.y_foot_ref)):
+                            y2 = max(y2, float(t.y_foot_ref))
+                        x1 = cx - 0.5 * last_w
+                        x2 = cx + 0.5 * last_w
+                        cur_box = np.array([x1, y1, x2, y2], dtype=np.float32)
+                    elif t.y_foot_ref is not None and np.isfinite(float(t.y_foot_ref)):
+                        # At least keep a stable footline if we have it.
+                        cur_box = cur_box.copy()
+                        cur_box[3] = max(float(cur_box[3]), float(t.y_foot_ref))
+
+                    # Clamp to image if known
+                    if img_wh is not None:
+                        iw, ih = int(img_wh[0]), int(img_wh[1])
+                        cur_box[0] = np.float32(np.clip(float(cur_box[0]), 0.0, float(iw - 1)))
+                        cur_box[2] = np.float32(np.clip(float(cur_box[2]), 0.0, float(iw)))
+                        cur_box[1] = np.float32(np.clip(float(cur_box[1]), 0.0, float(ih - 1)))
+                        cur_box[3] = np.float32(np.clip(float(cur_box[3]), 0.0, float(ih)))
+                elif sideways_left_hidden or sideways_right_hidden:
+                    # Expand horizontally back to last known full-body width, anchored on the visible side.
+                    ref = t.full_ref_cxcywh if t.full_ref_cxcywh is not None else t.last_meas_cxcywh
+                    if ref is not None:
+                        last_w = float(max(1.0, float(ref[2])))
+                        x1, y1, x2, y2 = [float(v) for v in cur_box.tolist()]
+                        if sideways_left_hidden:
+                            t.occlusion_dir = "sideways_left"
+                            # right side visible => keep x2, expand x1 into the occluder (left)
+                            x1 = x2 - last_w
+                        else:
+                            t.occlusion_dir = "sideways_right"
+                            # left side visible => keep x1, expand x2 into the occluder (right)
+                            x2 = x1 + last_w
+                        cur_box = np.array([x1, y1, x2, y2], dtype=np.float32)
+
+                        if img_wh is not None:
+                            iw, ih = int(img_wh[0]), int(img_wh[1])
+                            cur_box[0] = np.float32(np.clip(float(cur_box[0]), 0.0, float(iw - 1)))
+                            cur_box[2] = np.float32(np.clip(float(cur_box[2]), 0.0, float(iw)))
+                            cur_box[1] = np.float32(np.clip(float(cur_box[1]), 0.0, float(ih - 1)))
+                            cur_box[3] = np.float32(np.clip(float(cur_box[3]), 0.0, float(ih)))
+
+                        # Estimate occluder boundary (wall edge) from grayscale edge.
+                        if self.full_body_wall_snap and frame_gray is not None:
+                            bh = float(max(1.0, float(raw_box[3] - raw_box[1])))
+                            ys = int(round(float(raw_box[1]) + 0.20 * bh))
+                            ye = int(round(float(raw_box[3]) - 0.10 * bh))
+                            spx = int(self.wall_snap_search_px)
+                            if str(t.occlusion_dir) == "sideways_right":
+                                xs = int(round(float(raw_box[2])))
+                                xe = xs + spx
+                            else:
+                                xe = int(round(float(raw_box[0])))
+                                xs = xe - spx
+                            x_edge = _estimate_vertical_edge_x(frame_gray, x_start=xs, x_end=xe, y_start=ys, y_end=ye)
+                            if x_edge is not None and np.isfinite(float(x_edge)):
+                                if t.wall_edge_x is None or (not np.isfinite(float(t.wall_edge_x))):
+                                    t.wall_edge_x = float(x_edge)
+                                else:
+                                    a = float(self.wall_snap_ema)
+                                    t.wall_edge_x = float(a * float(t.wall_edge_x) + (1.0 - a) * float(x_edge))
+
+                # Generic sideways collapse guard (works even if left/right kpts are unreliable):
+                # If current measured width shrinks a lot vs stored full-body reference,
+                # keep the reference for freeze and (if possible) infer which side is occluded.
+                if t.full_ref_cxcywh is not None:
+                    ref_x1, _, ref_x2, _ = _cxcywh_to_xyxy(t.full_ref_cxcywh).tolist()
+                    ref_w = float(max(1.0, float(ref_x2 - ref_x1)))
+                    cur_w = float(max(1.0, float(raw_box[2] - raw_box[0])))
+                    if cur_w < (self.full_body_min_width_ratio * ref_w):
+                        # Decide which side is occluded.
+                        # Prefer a detected occluder boundary (wall_edge_x) if available; otherwise fall back to reference-edge heuristic.
+                        wx = getattr(t, "wall_edge_x", None)
+                        if wx is not None and np.isfinite(float(wx)):
+                            wl = abs(float(wx) - float(raw_box[0]))
+                            wr = abs(float(wx) - float(raw_box[2]))
+                            t.occlusion_dir = "sideways_left" if wl < wr else "sideways_right"
+                        else:
+                            d_left = abs(float(raw_box[0]) - float(ref_x1))
+                            d_right = abs(float(raw_box[2]) - float(ref_x2))
+                            t.occlusion_dir = "sideways_left" if d_right < d_left else "sideways_right"
+
+                        # Update last_visible box to the full reference box (do NOT overwrite with the sliver).
+                        t.last_visible_box_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+                        t.y_foot_ref = float(t.last_visible_box_xyxy[3])
+
+                        # Also try to estimate occluder boundary near the sliver edge.
+                        if self.full_body_wall_snap and frame_gray is not None:
+                            bh = float(max(1.0, float(raw_box[3] - raw_box[1])))
+                            ys = int(round(float(raw_box[1]) + 0.20 * bh))
+                            ye = int(round(float(raw_box[3]) - 0.10 * bh))
+                            spx = int(self.wall_snap_search_px)
+                            if str(t.occlusion_dir) == "sideways_right":
+                                xs = int(round(float(raw_box[2])))
+                                xe = xs + spx
+                            else:
+                                xe = int(round(float(raw_box[0])))
+                                xs = xe - spx
+                            x_edge = _estimate_vertical_edge_x(frame_gray, x_start=xs, x_end=xe, y_start=ys, y_end=ye)
+                            if x_edge is not None and np.isfinite(float(x_edge)):
+                                if t.wall_edge_x is None or (not np.isfinite(float(t.wall_edge_x))):
+                                    t.wall_edge_x = float(x_edge)
+                                else:
+                                    a = float(self.wall_snap_ema)
+                                    t.wall_edge_x = float(a * float(t.wall_edge_x) + (1.0 - a) * float(x_edge))
+
+            # Fallback: sideways occlusion without reliable keypoints.
+            # If the detector bbox collapses to a narrow sliver, expand to full_ref width and mark occlusion_dir,
+            # so visualization (orange box) and wall snapping can kick in.
+            if self.full_body_bbox and t.full_ref_cxcywh is not None:
+                ref_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+                ref_x1, ref_y1, ref_x2, ref_y2 = [float(v) for v in ref_xyxy.tolist()]
+                ref_w = float(max(1.0, ref_x2 - ref_x1))
+                cur_w_raw = float(max(1.0, float(raw_box[2] - raw_box[0])))
+                if cur_w_raw < (self.full_body_min_width_ratio * ref_w):
+                    # Decide which side is occluded.
+                    # Prefer wall_edge_x if available; otherwise fall back to reference-edge heuristic.
+                    wx = getattr(t, "wall_edge_x", None)
+                    use_wall = wx is not None and np.isfinite(float(wx))
+                    if use_wall:
+                        wl = abs(float(wx) - float(raw_box[0]))
+                        wr = abs(float(wx) - float(raw_box[2]))
+                        side_left = wl < wr
+                    else:
+                        d_left = abs(float(raw_box[0]) - ref_x1)
+                        d_right = abs(float(raw_box[2]) - ref_x2)
+                        side_left = d_right < d_left
+                    x1, y1, x2, y2 = [float(v) for v in cur_box.tolist()]
+                    if side_left:
+                        t.occlusion_dir = "sideways_left"
+                        x1 = x2 - ref_w
+                    else:
+                        t.occlusion_dir = "sideways_right"
+                        x2 = x1 + ref_w
+                    cur_box = np.array([x1, y1, x2, y2], dtype=np.float32)
+
+                    # Keep last visible as full-body reference (avoid overwriting with sliver)
+                    t.last_visible_box_xyxy = ref_xyxy.astype(np.float32)
+                    t.y_foot_ref = float(ref_y2)
+
+                    # Estimate boundary near sliver edge.
+                    if self.full_body_wall_snap and frame_gray is not None:
+                        bh = float(max(1.0, float(raw_box[3] - raw_box[1])))
+                        ys = int(round(float(raw_box[1]) + 0.20 * bh))
+                        ye = int(round(float(raw_box[3]) - 0.10 * bh))
+                        spx = int(self.wall_snap_search_px)
+                        if str(t.occlusion_dir) == "sideways_right":
+                            xs = int(round(float(raw_box[2])))
+                            xe = xs + spx
+                        else:
+                            xe = int(round(float(raw_box[0])))
+                            xs = xe - spx
+                        x_edge = _estimate_vertical_edge_x(frame_gray, x_start=xs, x_end=xe, y_start=ys, y_end=ye)
+                        if x_edge is not None and np.isfinite(float(x_edge)):
+                            if t.wall_edge_x is None or (not np.isfinite(float(t.wall_edge_x))):
+                                t.wall_edge_x = float(x_edge)
+                            else:
+                                a = float(self.wall_snap_ema)
+                                t.wall_edge_x = float(a * float(t.wall_edge_x) + (1.0 - a) * float(x_edge))
+
+                    # Clamp to image if known
+                    if img_wh is not None:
+                        iw, ih = int(img_wh[0]), int(img_wh[1])
+                        cur_box[0] = np.float32(np.clip(float(cur_box[0]), 0.0, float(iw - 1)))
+                        cur_box[2] = np.float32(np.clip(float(cur_box[2]), 0.0, float(iw)))
+                        cur_box[1] = np.float32(np.clip(float(cur_box[1]), 0.0, float(ih - 1)))
+                        cur_box[3] = np.float32(np.clip(float(cur_box[3]), 0.0, float(ih)))
+
+            # Occlusion latch: if we have any occlusion signal this frame, latch an occluded box for TTL frames.
+            # This is the "make a box and keep it for N seconds" behavior.
+            if bool(self.full_body_bbox) and ttl_frames > 0:
+                occ_signal = str(getattr(t, "occlusion_dir", "none")) != "none"
+                if occ_signal:
+                    # If we have a wall boundary estimate, ensure sideways direction matches it
+                    # before we compute the latched expansion.
+                    wx = getattr(t, "wall_edge_x", None)
+                    od0 = str(getattr(t, "occlusion_dir", "none"))
+                    if wx is not None and np.isfinite(float(wx)) and od0.startswith("sideways_"):
+                        wl = abs(float(wx) - float(raw_box[0]))
+                        wr = abs(float(wx) - float(raw_box[2]))
+                        t.occlusion_dir = "sideways_left" if wl < wr else "sideways_right"
+
+                    t.occ_latch = int(ttl_frames)
+                    # Prefer snapped/frozen box if available, else current expanded box, else full_ref
+                    box_latch = None
+                    if getattr(t, "freeze_active", False) and getattr(t, "freeze_box_xyxy", None) is not None:
+                        box_latch = t.freeze_box_xyxy.astype(np.float32).copy()
+                    elif cur_box is not None:
+                        box_latch = cur_box.astype(np.float32).copy()
+                    elif getattr(t, "full_ref_cxcywh", None) is not None:
+                        box_latch = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+
+                    # Expand latched box in occlusion direction (simple, practical heuristic).
+                    if box_latch is not None:
+                        bx1, by1, bx2, by2 = [float(v) for v in box_latch.tolist()]
+                        # base size from full-body reference if available (more stable)
+                        if getattr(t, "full_ref_cxcywh", None) is not None:
+                            ref_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+                            ref_w = float(max(1.0, float(ref_xyxy[2] - ref_xyxy[0])))
+                            ref_h = float(max(1.0, float(ref_xyxy[3] - ref_xyxy[1])))
+                        else:
+                            ref_w = float(max(1.0, bx2 - bx1))
+                            ref_h = float(max(1.0, by2 - by1))
+
+                        ex = float(self.occ_latch_expand_x) * ref_w
+                        ey = float(self.occ_latch_expand_y) * ref_h
+                        od = str(getattr(t, "occlusion_dir", "none"))
+                        if od == "sideways_left":
+                            bx1 -= ex
+                        elif od == "sideways_right":
+                            bx2 += ex
+                        elif od == "bottom_up":
+                            by2 += ey
+                        # If we have a wall edge, bias the expansion to go "into" the occluder.
+                        if getattr(t, "wall_edge_x", None) is not None and od.startswith("sideways_"):
+                            wx = float(getattr(t, "wall_edge_x"))
+                            pad = float(self.wall_snap_pad_px)
+                            if od == "sideways_left":
+                                bx1 = min(bx1, wx - pad - ex)
+                            else:
+                                bx2 = max(bx2, wx + pad + ex)
+
+                        if img_wh is not None:
+                            iw, ih = int(img_wh[0]), int(img_wh[1])
+                            bx1 = float(np.clip(bx1, 0.0, float(iw - 1)))
+                            bx2 = float(np.clip(bx2, 0.0, float(iw)))
+                            by1 = float(np.clip(by1, 0.0, float(ih - 1)))
+                            by2 = float(np.clip(by2, 0.0, float(ih)))
+                        box_latch = np.array([bx1, by1, bx2, by2], dtype=np.float32)
+                    t.occ_latch_box_xyxy = box_latch
+                else:
+                    # If the track is clearly visible again, release latch early.
+                    # Heuristic: sufficient lower-body visibility and width not collapsed.
+                    release = False
+                    if cur_kpt is not None and getattr(t, "full_ref_cxcywh", None) is not None:
+                        lower_vis_now = _count_visible_kpts(cur_kpt, _LOWER_KPT_IDXS, kpt_thr=self.kpt_thr)
+                        ref_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+                        ref_w = float(max(1.0, float(ref_xyxy[2] - ref_xyxy[0])))
+                        cur_w = float(max(1.0, float(cur_box[2] - cur_box[0])))
+                        if int(lower_vis_now) >= int(self.full_body_lower_update_min) and cur_w >= (0.9 * ref_w):
+                            release = True
+                    if release:
+                        t.occ_latch = 0
+                        t.occ_latch_box_xyxy = None
 
             prev_box = t.box_smooth if t.box_smooth is not None else t.box_xyxy
             prev_area = _area_xyxy(prev_box)
@@ -944,17 +1418,29 @@ class KalmanTracker:
             if det_pose_quality is not None and det_pose_quality.size > di:
                 t.pose_quality = float(det_pose_quality[di])
             t.last_meas_cxcywh = meas.astype(np.float32)
-            t.y_foot_ref = float(cur_box[3])  # y2 in pixels (update only when visible)
-            t.last_visible_box_xyxy = cur_box.astype(np.float32).copy()
+            # Update full-body reference only when we believe lower body is actually visible.
+            # Otherwise bottom-up occlusion would overwrite footline and "full-body bbox" would collapse.
+            if cur_kpt is not None:
+                lower_vis_now = _count_visible_kpts(cur_kpt, _LOWER_KPT_IDXS, kpt_thr=self.kpt_thr)
+            else:
+                lower_vis_now = int(self.full_body_lower_update_min)
+            # Don't overwrite the full-body reference with a narrow sideways-occluded sliver.
+            allow_update_visible = (not self.full_body_bbox) or (int(lower_vis_now) >= int(self.full_body_lower_update_min))
+            if self.full_body_bbox and t.full_ref_cxcywh is not None:
+                ref_xyxy = _cxcywh_to_xyxy(t.full_ref_cxcywh).astype(np.float32)
+                ref_w = float(max(1.0, float(ref_xyxy[2] - ref_xyxy[0])))
+                cur_w = float(max(1.0, float(cur_box[2] - cur_box[0])))
+                if cur_w < (self.full_body_min_width_ratio * ref_w):
+                    allow_update_visible = False
+            if allow_update_visible:
+                t.y_foot_ref = float(cur_box[3])  # y2 in pixels
+                t.last_visible_box_xyxy = cur_box.astype(np.float32).copy()
             t.freeze_active = False
             t.freeze_box_xyxy = None
             t.oof_count = 0
             t.occluded_conf = 0.0
             t.occluder_front_frac = 0.0
 
-            cur_kpt = None
-            if det_keypoints is not None:
-                cur_kpt = det_keypoints[di].astype(np.float32)
             t.keypoints = cur_kpt if cur_kpt is not None else t.keypoints
 
             # depth measurement update (inverse depth proxy)

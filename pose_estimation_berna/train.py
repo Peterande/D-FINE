@@ -37,7 +37,7 @@ for p in [repo_root_dir, current_dir, src_dir]:
         sys.path.insert(0, p)
 
 from pose_estimation_berna.core.datasets import create_coco_pose_dataset
-from pose_estimation_berna.core.losses import create_pose_criterion
+from pose_estimation_berna.core.losses import create_pose_criterion, create_pose_criterion_detrpose
 from pose_estimation_berna.core.metrics import PoseMetricsTracker
 from pose_estimation_berna.core.models import (
     build_param_groups,
@@ -97,6 +97,17 @@ def parse_args():
         help="Optional output subfolder name (defaults to --tier). Example: --tier standard --run-name standard_lqe_obj365",
     )
     p.add_argument("--config-dir", default="configs")
+    # DFINE YAMLConfig overrides (lets you switch pose configs without editing YAMLs mid-run)
+    p.add_argument(
+        "--dfine-config-path",
+        default=None,
+        help="Override cfg.dfine.config_path (e.g. base_dfine/dfine_hgnetv2_l_obj365_detrpose_paper.yml).",
+    )
+    p.add_argument(
+        "--dfine-checkpoint-path",
+        default=None,
+        help="Override cfg.dfine.checkpoint_path (base detector weights).",
+    )
     p.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--resume", type=str, default=None, help="Resume from a pose checkpoint (*.pth)")
@@ -183,6 +194,15 @@ def main():
 
     args = parse_args()
     cfg = load_config(args.tier, args.config_dir)
+    # Apply DFINE config overrides (optional)
+    if args.dfine_config_path is not None:
+        cfg.setdefault("dfine", {})
+        cfg["dfine"]["config_path"] = str(args.dfine_config_path)
+        print(f"🧾 Overriding dfine.config_path -> {cfg['dfine']['config_path']}")
+    if args.dfine_checkpoint_path is not None:
+        cfg.setdefault("dfine", {})
+        cfg["dfine"]["checkpoint_path"] = str(args.dfine_checkpoint_path)
+        print(f"🧾 Overriding dfine.checkpoint_path -> {cfg['dfine']['checkpoint_path']}")
     # Optional overrides (keep config files clean)
     if args.image_size is not None:
         cfg.setdefault("dataset", {})
@@ -270,6 +290,14 @@ def main():
 
     model = df_cfg.model.to(device)
 
+    # Detect whether this DFINE config is using the DETRPose-style decoder (pose-only outputs).
+    # We use this to pick criterion + postprocessor that match the output format.
+    try:
+        decoder_name = str((df_cfg.yaml_cfg.get("DFINE", {}) or {}).get("decoder", "")).strip()
+    except Exception:
+        decoder_name = ""
+    is_detrpose_decoder = decoder_name.lower() == "detrposetransformer" or "detrpose" in str(dfine_cfg).lower()
+
     def _load_state(path: str):
         state = torch.load(path, map_location="cpu")
         if isinstance(state, dict):
@@ -340,14 +368,23 @@ def main():
     else:
         freeze_detection = bool(cfg.get("training", {}).get("freeze_detection", False))
     if freeze_detection:
-        freeze_except_keypoints(model)
-        print("🔒 Frozen all params except decoder keypoint head")
+        if is_detrpose_decoder:
+            # Our freeze helper is DFINE-specific (expects decoder.dec_keypoint_head).
+            # For DETRPose-style decoder, freezing would likely freeze everything and stall training.
+            print("⚠️ freeze_detection requested but DETRPose decoder is active; ignoring freeze_detection.")
+            freeze_detection = False
+        else:
+            freeze_except_keypoints(model)
+            print("🔒 Frozen all params except decoder keypoint head")
 
     # Freeze→unfreeze schedule (pose warmup): train pose heads first, then unfreeze everything.
     # This is safer than training all heads from step 1 when adapting a detection-pretrained model to pose.
     pose_only_epochs = int(cfg.get("training", {}).get("pose_only_epochs", 0) or 0)
     pose_unfreeze_epoch = None
     # Important: pose warmup should only run on a fresh start; on resume it would re-freeze a trained model.
+    if is_detrpose_decoder and pose_only_epochs > 0:
+        print("⚠️ pose_only_epochs is DFINE-specific; DETRPose decoder is active. Disabling pose_only_epochs.")
+        pose_only_epochs = 0
     if pose_only_epochs > 0 and start_epoch == 0:
         pose_unfreeze_epoch = start_epoch + pose_only_epochs
         # Even if freeze_detection is false, a pose-warmup is allowed to override it.
@@ -422,13 +459,32 @@ def main():
         else:
             print("⚠️ torch.compile not available in this torch version")
 
-    # Criterion (DFINECriterion + keypoints)
-    criterion = create_pose_criterion(num_classes=cfg.get("dfine", {}).get("num_classes", 80)).to(device)
+    # Criterion
+    if is_detrpose_decoder:
+        print("🧠 Using DETRPose-style criterion (pose-only, no pred_boxes).")
+        # For DETRPose decoder, the true class count comes from the DFINE YAMLConfig (global num_classes),
+        # because DETRPoseTransformer shares num_classes and it can be overridden by included yamls.
+        detrpose_num_classes = int(df_cfg.yaml_cfg.get("num_classes", cfg.get("dfine", {}).get("num_classes", 80)))
+        criterion = create_pose_criterion_detrpose(num_classes=detrpose_num_classes).to(device)
+    else:
+        print("🧠 Using DFINECriterion (boxes + bbox-relative keypoints).")
+        criterion = create_pose_criterion(num_classes=cfg.get("dfine", {}).get("num_classes", 80)).to(device)
     metrics = PoseMetricsTracker(num_keypoints=cfg["dataset"]["num_keypoints"])
 
     # Postprocessor + official COCO keypoint evaluator (optional but recommended for "best model")
-    postprocessor = df_cfg.postprocessor.to(device).eval()
-    postprocessor.remap_mscoco_category = True  # label(0) -> category_id(1)=person
+    if is_detrpose_decoder:
+        from pose_estimation_berna.core.postprocess_detrpose import DETRPosePostProcessor
+
+        detrpose_num_classes = int(df_cfg.yaml_cfg.get("num_classes", cfg.get("dfine", {}).get("num_classes", 80)))
+        postprocessor = DETRPosePostProcessor(
+            num_classes=detrpose_num_classes,
+            num_keypoints=int(cfg.get("dataset", {}).get("num_keypoints", 17)),
+            num_top_queries=int(df_cfg.yaml_cfg.get("DFINEPostProcessor", {}).get("num_top_queries", 300)),
+            remap_mscoco_category=True,
+        ).to(device).eval()
+    else:
+        postprocessor = df_cfg.postprocessor.to(device).eval()
+        postprocessor.remap_mscoco_category = True  # label(0) -> category_id(1)=person
     use_coco_eval = bool(cfg.get("evaluation", {}).get("use_coco_eval", True))
     coco_evaluator = None
     if use_coco_eval:

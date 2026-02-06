@@ -32,6 +32,14 @@ def create_pose_criterion(
     - Keypoints are supervised using the SAME Hungarian matching as the boxes (no extra matching).
     - Keypoints are bbox-relative: outputs["pred_keypoints"][..., :2] are in [0,1] within bbox.
     """
+    # Two pose training modes exist in this repo:
+    # 1) DFINE pose head: pred_boxes + bbox-relative pred_keypoints [B,Q,K,3]
+    # 2) DETRPose-style: pose-only decoder producing pred_keypoints [B,Q,2K] (image-normalized)
+    #
+    # We auto-select criterion based on the model outputs at runtime is hard here,
+    # so selection is done by configuration:
+    # - if cfg["dfine"]["config_path"] contains "detrpose" -> DETRPose-style criterion
+    # - else -> DFINECriterion
     from src.zoo.dfine.matcher import HungarianMatcher
     from src.zoo.dfine.dfine_criterion import DFINECriterion
 
@@ -67,6 +75,34 @@ def create_pose_criterion(
         boxes_weight_format=None,
         keypoints_box_mode="pred_detached",
         vfl_target="oks",
+    )
+
+
+def create_pose_criterion_detrpose(
+    num_classes: int = 2,
+    weight_dict: Dict[str, float] | None = None,
+):
+    """
+    DETRPose-style pose-only criterion (no boxes).
+    Outputs expected:
+      - pred_logits: [B,Q,C]
+      - pred_keypoints: [B,Q,2K] in [0,1] (resized image-normalized)
+    """
+    from src.zoo.dfine.detrpose.matcher import HungarianMatcherDETRPose
+    from src.zoo.dfine.detrpose.criterion import DETRPoseCriterion
+
+    if weight_dict is None:
+        # Match DETRPose default config (see DETRPose/configs/detrpose/include/detrpose_hgnetv2.py)
+        weight_dict = {"loss_vfl": 2.0, "loss_keypoints": 10.0, "loss_oks": 4.0}
+
+    matcher = HungarianMatcherDETRPose(cost_class=2.0, cost_keypoints=10.0, cost_oks=4.0, num_keypoints=17)
+    return DETRPoseCriterion(
+        num_classes=num_classes,
+        matcher=matcher,
+        weight_dict=weight_dict,
+        focal_alpha=0.25,
+        gamma=2.0,
+        num_keypoints=17,
     )
 
 

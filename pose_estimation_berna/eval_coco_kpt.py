@@ -51,6 +51,27 @@ def _load_state(path: str) -> dict:
     return state
 
 
+def _load_state_forgiving(model: torch.nn.Module, path: str) -> dict:
+    """
+    Load a checkpoint but drop keys with mismatched shapes.
+    Prevents eval crashes when the wrong dfine-config-path is used.
+    """
+    sd = _load_state(path)
+    if not isinstance(sd, dict):
+        return sd
+    msd = model.state_dict()
+    kept = {}
+    dropped = 0
+    for k, v in sd.items():
+        if k in msd and hasattr(v, "shape") and hasattr(msd[k], "shape") and v.shape == msd[k].shape:
+            kept[k] = v
+        else:
+            dropped += 1
+    if dropped > 0:
+        print(f"🧩 Forgiving load: keeping {len(kept)}/{len(sd)} keys (dropped {dropped} mismatched)")
+    return kept
+
+
 def _remap_labels_to_coco_category(labels: torch.Tensor) -> torch.Tensor:
     # D-FINE labels are contiguous 0..79; COCO evaluator expects category_id (person==1).
     from src.data.dataset import mscoco_label2category
@@ -230,8 +251,17 @@ def evaluate_one(
                 m.eval_spatial_size = None
             except Exception:
                 pass
-    state = _load_state(checkpoint_path)
-    model.load_state_dict(state, strict=False)
+    try:
+        state = _load_state(checkpoint_path)
+        model.load_state_dict(state, strict=False)
+    except RuntimeError as e:
+        msg = str(e)
+        if "size mismatch" in msg or "Error(s) in loading state_dict" in msg:
+            print("⚠️ Checkpoint/model shape mismatch; falling back to forgiving load. (Fix by passing --dfine-config-path)")
+            state = _load_state_forgiving(model, checkpoint_path)
+            model.load_state_dict(state, strict=False)
+        else:
+            raise
 
     root_dir = cfg["dataset"]["root_dir"]
     root_dir = str((repo_root / root_dir) if not str(root_dir).startswith("/") else root_dir)
@@ -281,8 +311,20 @@ def evaluate_one(
                 out_f["pred_boxes"][..., 0] = 1.0 - out_f["pred_boxes"][..., 0]
             if "pred_keypoints" in out_f and out_f["pred_keypoints"] is not None:
                 k = out_f["pred_keypoints"].clone()
-                k[..., 0] = 1.0 - k[..., 0]
-                k = k[..., COCO_KEYPOINT_FLIP_INDEX, :]
+                # Two supported formats:
+                # - DFINE: [B,Q,K,3] bbox-relative
+                # - DETRPose-style: [B,Q,2K] image-normalized
+                if k.ndim == 4:
+                    k[..., 0] = 1.0 - k[..., 0]
+                    k = k[..., COCO_KEYPOINT_FLIP_INDEX, :]
+                elif k.ndim == 3:
+                    # flip x for each (x,y) pair in the flattened vector
+                    k[..., 0::2] = 1.0 - k[..., 0::2]
+                    k = k.view(k.shape[0], k.shape[1], -1, 2)
+                    k = k[:, :, COCO_KEYPOINT_FLIP_INDEX, :]
+                    k = k.flatten(-2)
+                else:
+                    raise ValueError(f"Unexpected pred_keypoints shape for flip-TTA: {tuple(k.shape)}")
                 out_f["pred_keypoints"] = k
 
             outputs = dict(outputs)
@@ -292,13 +334,26 @@ def evaluate_one(
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0).to(device)
         num_top = int(df_cfg.yaml_cfg.get("DFINEPostProcessor", {}).get("num_top_queries", 300))
-        preds = _postprocess_raw(
-            outputs,
-            orig_target_sizes=orig_target_sizes,
-            num_classes=int(cfg.get("dfine", {}).get("num_classes", 80)),
-            num_top_queries=num_top,
-            remap_mscoco_category=True,
-        )
+        if "pred_boxes" in outputs and outputs.get("pred_boxes", None) is not None:
+            preds = _postprocess_raw(
+                outputs,
+                orig_target_sizes=orig_target_sizes,
+                num_classes=int(cfg.get("dfine", {}).get("num_classes", 80)),
+                num_top_queries=num_top,
+                remap_mscoco_category=True,
+            )
+            preds_are_pose_only = False
+        else:
+            from pose_estimation_berna.core.postprocess_detrpose import DETRPosePostProcessor
+
+            detrpose_num_classes = int(df_cfg.yaml_cfg.get("num_classes", cfg.get("dfine", {}).get("num_classes", 80)))
+            preds = DETRPosePostProcessor(
+                num_classes=detrpose_num_classes,
+                num_keypoints=int(cfg.get("dataset", {}).get("num_keypoints", 17)),
+                num_top_queries=num_top,
+                remap_mscoco_category=True,
+            ).to(device).eval()(outputs, orig_target_sizes)
+            preds_are_pose_only = True
 
         for t, p in zip(targets, preds):
             img_id = int(t["image_id"].reshape(-1)[0].detach().cpu().item())
@@ -306,8 +361,11 @@ def evaluate_one(
             scores = p["scores"].detach().cpu()
             labels = p["labels"].detach().cpu()
             kpts_rel = p.get("keypoints_rel", None)
+            kpts_abs = p.get("keypoints", None)
             if kpts_rel is not None:
                 kpts_rel = kpts_rel.detach().cpu()
+            if kpts_abs is not None:
+                kpts_abs = kpts_abs.detach().cpu()
 
             # Keep only person detections (COCO category_id == 1)
             person_mask = labels == 1
@@ -316,6 +374,8 @@ def evaluate_one(
             labels = labels[person_mask]
             if kpts_rel is not None:
                 kpts_rel = kpts_rel[person_mask]
+            if kpts_abs is not None:
+                kpts_abs = kpts_abs[person_mask]
 
             # Merge duplicates (especially important for flip-TTA) using NMS.
             if boxes.numel() > 0 and float(nms_iou_thr) > 0:
@@ -325,23 +385,32 @@ def evaluate_one(
                 labels = labels[keep]
                 if kpts_rel is not None:
                     kpts_rel = kpts_rel[keep]
+                if kpts_abs is not None:
+                    kpts_abs = kpts_abs[keep]
 
-            if kpts_rel is None:
-                kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
+            if preds_are_pose_only:
+                kpts = (
+                    torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
+                    if kpts_abs is None
+                    else kpts_abs
+                )
             else:
-                if oracle_gt_boxes:
-                    boxes, kpts = _apply_oracle_gt_boxes(
-                        pred_boxes_xyxy_px=boxes,
-                        pred_scores=scores,
-                        pred_keypoints_rel=kpts_rel,
-                        target=t,
-                        orig_target_size_wh=t["orig_size"].detach().cpu(),
-                        iou_thr=float(oracle_iou_thr),
-                    )
-                    if kpts is None:
-                        kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
+                if kpts_rel is None:
+                    kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
                 else:
-                    kpts = _decode_keypoints_abs(boxes, kpts_rel, t["orig_size"].detach().cpu())
+                    if oracle_gt_boxes:
+                        boxes, kpts = _apply_oracle_gt_boxes(
+                            pred_boxes_xyxy_px=boxes,
+                            pred_scores=scores,
+                            pred_keypoints_rel=kpts_rel,
+                            target=t,
+                            orig_target_size_wh=t["orig_size"].detach().cpu(),
+                            iou_thr=float(oracle_iou_thr),
+                        )
+                        if kpts is None:
+                            kpts = torch.empty((0, cfg["dataset"]["num_keypoints"], 3), dtype=torch.float32)
+                    else:
+                        kpts = _decode_keypoints_abs(boxes, kpts_rel, t["orig_size"].detach().cpu())
             # evaluator expects keypoints as [x,y,v]; force v=1 to avoid treating low confidence as invisibility
             if kpts.numel() > 0 and kpts.shape[-1] == 3:
                 kpts = kpts.clone()
@@ -370,6 +439,11 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--tier", default="standard", choices=["lightweight", "standard", "advanced"])
     p.add_argument("--config-dir", default="pose_estimation_berna/configs")
+    p.add_argument(
+        "--dfine-config-path",
+        default=None,
+        help="Override cfg.dfine.config_path (must match checkpoint architecture).",
+    )
     p.add_argument("--checkpoint", "-r", nargs="+", required=True, help="One or more .pth checkpoints to evaluate")
     p.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     p.add_argument("--num-workers", type=int, default=None)
@@ -396,6 +470,10 @@ def main():
     args = parse_args()
     cfg = load_config(args.tier, args.config_dir)
     cfg["tier"] = args.tier
+    if args.dfine_config_path is not None:
+        cfg.setdefault("dfine", {})
+        cfg["dfine"]["config_path"] = str(args.dfine_config_path)
+        print(f"🧾 Overriding dfine.config_path -> {cfg['dfine']['config_path']}")
     if args.image_size is not None:
         cfg.setdefault("dataset", {})
         cfg["dataset"]["image_size"] = int(args.image_size)

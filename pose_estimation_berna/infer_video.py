@@ -9,6 +9,7 @@ import argparse
 import os
 import sys
 import subprocess
+import time
 from typing import Optional, Tuple
 
 import cv2
@@ -84,6 +85,7 @@ def draw_pose(
     color=(0, 255, 0),
     kpt_thr: float = 0.2,
     show_kpt_idx: bool = False,
+    draw_box: bool = True,
 ):
     h, w = img_bgr.shape[:2]
     x1, y1, x2, y2 = box_xyxy.tolist()
@@ -91,7 +93,8 @@ def draw_pose(
     y1i = int(np.clip(round(y1), 0, max(0, h - 1)))
     x2i = int(np.clip(round(x2), 0, max(0, w - 1)))
     y2i = int(np.clip(round(y2), 0, max(0, h - 1)))
-    cv2.rectangle(img_bgr, (x1i, y1i), (x2i, y2i), color, 2)
+    if bool(draw_box):
+        cv2.rectangle(img_bgr, (x1i, y1i), (x2i, y2i), color, 2)
 
     # keypoints: [17,3] (x,y,score)
     for i in range(keypoints.shape[0]):
@@ -339,6 +342,13 @@ def main():
         action="store_true",
         help="Overlay simple debug stats on the output video (tracks/drawn/best_person_score).",
     )
+    p.add_argument(
+        "--profile",
+        action="store_true",
+        help="Print performance stats (FPS + rough ms breakdown) while running.",
+    )
+    p.add_argument("--profile-every", type=int, default=60, help="Print profiling stats every N frames.")
+    p.add_argument("--profile-warmup", type=int, default=10, help="Skip first N frames before profiling output.")
     p.add_argument("--track", action="store_true", help="Enable simple IoU tracking (stable IDs over frames)")
     p.add_argument(
         "--post-topk-track",
@@ -377,6 +387,19 @@ def main():
     p.add_argument("--depth-occ-frac-thr", type=float, default=0.35, help="Fraction of nearer pixels to consider the track occluded.")
     p.add_argument("--depth-ttl-mult", type=float, default=3.0, help="Max multiplier for occlusion TTL when depth indicates occlusion.")
     p.add_argument("--depth-score-decay-occluded", type=float, default=0.995, help="Score decay per frame when depth indicates occlusion.")
+
+    # Keypoint-based "full-body bbox" under partial occlusion (e.g., behind chair).
+    p.add_argument("--full-body-bbox", action="store_true", help="When upper-body kpts visible but lower-body kpts missing, expand bbox to last full-body size.")
+    p.add_argument("--full-body-upper-min", type=int, default=4, help="Min visible upper-body kpts to trigger bottom-up occlusion logic.")
+    p.add_argument("--full-body-lower-max", type=int, default=1, help="Max visible lower-body kpts to trigger bottom-up occlusion logic.")
+    p.add_argument("--full-body-lower-update-min", type=int, default=3, help="Min visible lower-body kpts required to update footline/full-body reference.")
+    p.add_argument("--full-body-min-width-ratio", type=float, default=0.70, help="If measured bbox width shrinks below this fraction of stored full-body width, keep the stored width for occlusion.")
+    p.add_argument("--full-body-wall-snap", action="store_true", help="Snap sideways-occluded bbox edge to a detected wall boundary (uses grayscale edges).")
+    p.add_argument("--wall-snap-search-px", type=int, default=80, help="Search width (px) into occluder side for wall edge detection.")
+    p.add_argument("--wall-snap-pad-px", type=int, default=6, help="Pad (px) to extend bbox into the occluder beyond the wall edge.")
+    p.add_argument("--wall-snap-ema", type=float, default=0.85, help="EMA smoothing for wall edge x position (0..1).")
+    p.add_argument("--occ-latch-expand-x", type=float, default=0.25, help="When occlusion latch triggers, expand bbox horizontally (fraction of full-body width) into occluder side.")
+    p.add_argument("--occ-latch-expand-y", type=float, default=0.25, help="When occlusion latch triggers, expand bbox vertically (fraction of full-body height) for bottom-up occlusion.")
     p.add_argument(
         "--track-method",
         choices=["iou", "kalman"],
@@ -590,9 +613,52 @@ def main():
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     model = cfg.model.deploy().to(device).eval()
+
+    # Post-processing:
+    # - Standard DFINE outputs include pred_boxes -> use DFINEPostProcessor from YAML.
+    # - DETRPose-style (pose-only) outputs do NOT include pred_boxes -> use DETRPosePostProcessor
+    #   that builds a tight bbox around predicted keypoints.
     post = cfg.postprocessor.to(device).eval()
-    # Match training/eval convention: map contiguous labels -> MSCOCO category ids (person == 1)
-    post.remap_mscoco_category = True
+    use_detrpose_post = False
+    try:
+        # robust heuristics: config path + decoder name + explicit block
+        cfg_path_l = str(args.config).lower()
+        if "detrpose" in cfg_path_l:
+            use_detrpose_post = True
+        if isinstance(getattr(cfg, "yaml_cfg", None), dict):
+            dec = ""
+            if "DFINE" in cfg.yaml_cfg and isinstance(cfg.yaml_cfg["DFINE"], dict):
+                dec = str(cfg.yaml_cfg["DFINE"].get("decoder", ""))
+            if "detrpose" in dec.lower():
+                use_detrpose_post = True
+            if "DETRPoseTransformer" in cfg.yaml_cfg:
+                use_detrpose_post = True
+    except Exception:
+        use_detrpose_post = False
+
+    if use_detrpose_post:
+        from pose_estimation_berna.core.postprocess_detrpose import DETRPosePostProcessor  # noqa: WPS433
+
+        num_classes = 2
+        num_top = 300
+        try:
+            if isinstance(getattr(cfg, "yaml_cfg", None), dict):
+                num_classes = int(cfg.yaml_cfg.get("num_classes", num_classes))
+                if isinstance(cfg.yaml_cfg.get("DFINEPostProcessor", None), dict):
+                    num_top = int(cfg.yaml_cfg["DFINEPostProcessor"].get("num_top_queries", num_top))
+        except Exception:
+            pass
+        # Keep keypoints/boxes in "DFINEPostProcessor-like" output dict for the rest of infer_video.py.
+        post = DETRPosePostProcessor(
+            num_classes=int(num_classes),
+            num_keypoints=17,
+            num_top_queries=int(num_top),
+            remap_mscoco_category=True,
+        ).to(device).eval()
+    else:
+        # Match training/eval convention: map contiguous labels -> MSCOCO category ids (person == 1)
+        if hasattr(post, "remap_mscoco_category"):
+            post.remap_mscoco_category = True
 
     tfm = T.Compose([T.Resize((640, 640)), T.ToTensor()])
 
@@ -669,6 +735,17 @@ def main():
                 depth_occ_frac_thr=float(args.depth_occ_frac_thr),
                 depth_ttl_mult=float(args.depth_ttl_mult),
                 depth_score_decay_occluded=float(args.depth_score_decay_occluded),
+                full_body_bbox=bool(args.full_body_bbox),
+                full_body_upper_min=int(args.full_body_upper_min),
+                full_body_lower_max=int(args.full_body_lower_max),
+                full_body_lower_update_min=int(args.full_body_lower_update_min),
+                full_body_min_width_ratio=float(args.full_body_min_width_ratio),
+                full_body_wall_snap=bool(args.full_body_wall_snap),
+                wall_snap_search_px=int(args.wall_snap_search_px),
+                wall_snap_pad_px=int(args.wall_snap_pad_px),
+                wall_snap_ema=float(args.wall_snap_ema),
+                occ_latch_expand_x=float(args.occ_latch_expand_x),
+                occ_latch_expand_y=float(args.occ_latch_expand_y),
             )
         else:
             tracker = IoUTracker(
@@ -706,6 +783,21 @@ def main():
             writer_ff.write(frame)
 
     frame_idx = 0
+    # Optional profiling (simple ms breakdown + FPS)
+    prof = bool(getattr(args, "profile", False))
+    prof_every = max(1, int(getattr(args, "profile_every", 60)))
+    prof_warmup = max(0, int(getattr(args, "profile_warmup", 10)))
+    prof_t0 = time.perf_counter() if prof else 0.0
+    prof_reset_frame = 0
+    prof_frames = 0
+    prof_pre = 0.0
+    prof_depth = 0.0
+    prof_modelpost = 0.0
+    prof_track = 0.0
+    prof_draw = 0.0
+    prof_write = 0.0
+    prof_total = 0.0
+
     # Simple run metrics (to compare runs quantitatively)
     metrics_frames = 0
     metrics_tracks_total = 0
@@ -714,6 +806,7 @@ def main():
     metrics_drawn_occluded = 0
     metrics_unique_ids: set[int] = set()
     while True:
+        t_total0 = time.perf_counter() if prof else 0.0
         if frame_idx > 0:
             ok, frame_bgr = cap.read()
             if not ok or frame_bgr is None:
@@ -726,21 +819,62 @@ def main():
             frame_bgr = cv2.resize(frame_bgr, (base_w, base_h), interpolation=cv2.INTER_LINEAR)
             h, w = base_h, base_w
 
+        t_pre0 = time.perf_counter() if prof else 0.0
         # preprocess (keep original resolution for visualization, but run 640x640 into model)
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        frame_gray = None
+        if tracker is not None and args.track_method == "kalman" and bool(args.full_body_wall_snap):
+            # lightweight grayscale for wall-edge detection (sideways occlusion)
+            frame_gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         im_pil = Image.fromarray(frame_rgb)
         orig_size = torch.tensor([[w, h]], device=device)
         x = tfm(im_pil).unsqueeze(0).to(device)
+        if prof:
+            prof_pre += (time.perf_counter() - t_pre0)
 
         # Optional: depth inference (stride for real-time). Depth is used only for tracking/occlusion logic.
+        t_depth0 = time.perf_counter() if prof else 0.0
         if depth_est is not None:
             stride = max(1, int(args.depth_stride))
             if (inv_depth_map is None) or (frame_idx % stride == 0):
                 inv_depth_map = depth_est.predict_inv_depth(frame_rgb)
+        if prof:
+            prof_depth += (time.perf_counter() - t_depth0)
 
+        t_modelpost0 = time.perf_counter() if prof else 0.0
+        if prof and device.type == "cuda":
+            try:
+                torch.cuda.synchronize()
+            except Exception:
+                pass
         with torch.no_grad():
             outputs = model(x)
-            results = post(outputs, orig_size)
+            try:
+                results = post(outputs, orig_size)
+            except KeyError as e:
+                # Fallback: if a DETRPose-style checkpoint is used with a DFINEPostProcessor in YAML,
+                # outputs will not have pred_boxes. Switch postprocessor on-the-fly.
+                if str(e) == "'pred_boxes'":
+                    from pose_estimation_berna.core.postprocess_detrpose import DETRPosePostProcessor  # noqa: WPS433
+
+                    num_classes = int(getattr(post, "num_classes", 2))
+                    num_top = int(getattr(post, "num_top_queries", 300))
+                    post = DETRPosePostProcessor(
+                        num_classes=int(num_classes),
+                        num_keypoints=17,
+                        num_top_queries=int(num_top),
+                        remap_mscoco_category=True,
+                    ).to(device).eval()
+                    results = post(outputs, orig_size)
+                else:
+                    raise
+        if prof and device.type == "cuda":
+            try:
+                torch.cuda.synchronize()
+            except Exception:
+                pass
+        if prof:
+            prof_modelpost += (time.perf_counter() - t_modelpost0)
 
         det = results[0]
         labels = det["labels"].detach().cpu().numpy()
@@ -766,6 +900,7 @@ def main():
 
         # Optional: track detections to stable IDs + smooth boxes/keypoints.
         track_outputs = None
+        t_track0 = time.perf_counter() if prof else 0.0
         if tracker is not None:
             keep_trk = (scores >= float(args.track_score_thr)) & np.isin(labels, [0, 1])
             idxs_trk = np.where(keep_trk)[0]
@@ -805,9 +940,12 @@ def main():
                     img_wh=(int(w), int(h)),
                     det_inv_depth=det_inv_depth,
                     inv_depth_map=inv_depth_map,
+                    frame_gray=frame_gray,
                 )
             else:
                 track_outputs = tracker.update(det_boxes, det_scores, det_kpts, det_pq)
+        if prof:
+            prof_track += (time.perf_counter() - t_track0)
 
         if args.verbose and (frame_idx % max(1, int(args.log_every)) == 0):
             best_idx = int(np.argmax(scores)) if scores.size > 0 else -1
@@ -821,6 +959,7 @@ def main():
                 f"drawing={int(len(idxs))}"
             )
 
+        t_draw0 = time.perf_counter() if prof else 0.0
         out_frame = frame_bgr.copy()
         # Optional overlay to make it obvious whether the tracker has active tracks even when nothing is drawn.
         if bool(args.overlay_stats):
@@ -867,8 +1006,17 @@ def main():
             # Prefer tracks updated this frame, then higher scores; cap by --max-persons.
             track_outputs = sorted(track_outputs, key=lambda t: (t.time_since_update, -t.score))
             if args.lock_track:
+                # Auto re-acquire when the locked track disappears (common after long occlusion):
+                # pick best visible track (updated this frame) if available, otherwise best track overall.
+                if locked_track_id is not None:
+                    present = any(int(t.track_id) == int(locked_track_id) for t in track_outputs)
+                    if not present:
+                        best_visible = next((t for t in track_outputs if int(t.time_since_update) == 0), None)
+                        locked_track_id = int(best_visible.track_id) if best_visible is not None else (int(track_outputs[0].track_id) if len(track_outputs) > 0 else None)
+
                 if locked_track_id is None and len(track_outputs) > 0:
                     locked_track_id = int(track_outputs[0].track_id)
+
                 if locked_track_id is not None:
                     track_outputs = [t for t in track_outputs if int(t.track_id) == int(locked_track_id)]
             # Filter what we draw:
@@ -882,7 +1030,9 @@ def main():
                     draw_tracks.append(t)
                     continue
                 if int(t.time_since_update) == 0:
-                    if float(t.score) >= float(args.score_thr):
+                    # Also draw partial-occlusion expanded boxes even if score is below drawing threshold.
+                    is_partial_occ = bool(args.full_body_bbox) and hasattr(t, "occlusion_dir") and str(getattr(t, "occlusion_dir")) != "none"
+                    if float(t.score) >= float(args.score_thr) or (is_partial_occ and float(t.score) >= float(args.track_score_thr)):
                         draw_tracks.append(t)
                 else:
                     if bool(args.draw_lost) and (
@@ -904,7 +1054,10 @@ def main():
             for t in draw_tracks:
                 # For visibility: if Freeze-BBox is active, draw the frozen box directly (no smoothing),
                 # so y1/y2/width are demonstrably constant during occlusion.
-                if hasattr(t, "freeze_active") and bool(getattr(t, "freeze_active", False)) and getattr(t, "freeze_box_xyxy", None) is not None:
+                # If occlusion latch is active, draw the latched box (stable through evidence dropouts).
+                if hasattr(t, "occ_latch") and int(getattr(t, "occ_latch", 0)) > 0 and getattr(t, "occ_latch_box_xyxy", None) is not None:
+                    box_draw = t.occ_latch_box_xyxy
+                elif hasattr(t, "freeze_active") and bool(getattr(t, "freeze_active", False)) and getattr(t, "freeze_box_xyxy", None) is not None:
                     box_draw = t.freeze_box_xyxy
                 else:
                     box_draw = t.box_smooth if t.box_smooth is not None else t.box_xyxy
@@ -912,6 +1065,13 @@ def main():
                 if kpt_draw is not None and args.swap_lr_kpts:
                     kpt_draw = kpt_draw[COCO_KEYPOINT_FLIP_INDEX, :]
                 is_lost = int(t.time_since_update) > 0
+                is_partial_occ = (
+                    (not is_lost)
+                    and (
+                        (hasattr(t, "occ_latch") and int(getattr(t, "occ_latch", 0)) > 0)
+                        or (bool(args.full_body_bbox) and hasattr(t, "occlusion_dir") and str(getattr(t, "occlusion_dir")) != "none")
+                    )
+                )
                 if is_lost:
                     # Step 4/5 debug-friendly visualization:
                     # - predicted bbox is dashed + different color
@@ -932,6 +1092,27 @@ def main():
                         cv2.rectangle(out_frame, (x1, y1), (x2, y2), occ_color, 2)
                     else:
                         _draw_dashed_rect(out_frame, box_draw, occ_color, thickness=2)
+                elif is_partial_occ:
+                    # Partial occlusion (still detected, but bbox expanded through occluder):
+                    # draw in occluded style to make it visually obvious.
+                    occ_color = (0, 165, 255)  # orange
+                    _draw_filled_bbox(out_frame, box_draw, occ_color, alpha=float(args.occluded_fill_alpha))
+                    if str(args.occluded_style) == "solid":
+                        x1, y1, x2, y2 = box_draw.astype(int).tolist()
+                        cv2.rectangle(out_frame, (x1, y1), (x2, y2), occ_color, 2)
+                    else:
+                        _draw_dashed_rect(out_frame, box_draw, occ_color, thickness=2)
+                    # Keep drawing keypoints (visible evidence) but avoid drawing an extra green bbox.
+                    if kpt_draw is not None:
+                        draw_pose(
+                            out_frame,
+                            box_draw,
+                            kpt_draw,
+                            color=occ_color,
+                            kpt_thr=float(args.kpt_thr),
+                            show_kpt_idx=bool(args.show_kpt_idx),
+                            draw_box=False,
+                        )
                 else:
                     if kpt_draw is not None:
                         draw_pose(
@@ -960,6 +1141,15 @@ def main():
                     if z is not None and np.isfinite(float(z)):
                         occ_f = float(occ) if (occ is not None and np.isfinite(float(occ))) else 0.0
                         label = f"{label} | z={float(z):.3f} occ={occ_f:.2f}"
+                if bool(args.full_body_bbox) and hasattr(t, "occlusion_dir") and str(getattr(t, "occlusion_dir")) != "none":
+                    label = f"{label} | occ_dir={str(getattr(t, 'occlusion_dir'))}"
+                if bool(args.full_body_wall_snap) and hasattr(t, "wall_edge_x") and getattr(t, "wall_edge_x") is not None:
+                    try:
+                        wx = float(getattr(t, "wall_edge_x"))
+                        if np.isfinite(wx):
+                            label = f"{label} | wall_x={wx:.1f}"
+                    except Exception:
+                        pass
                 if posture_est is not None:
                     pr = posture_est.estimate(t.track_id, box_draw, (None if is_lost else kpt_draw))
                     if is_lost:
@@ -976,7 +1166,46 @@ def main():
                     2,
                 )
 
+        if prof:
+            prof_draw += (time.perf_counter() - t_draw0)
+
+        t_write0 = time.perf_counter() if prof else 0.0
         _write(out_frame)
+        if prof:
+            prof_write += (time.perf_counter() - t_write0)
+            prof_total += (time.perf_counter() - t_total0)
+            prof_frames += 1
+            if frame_idx >= prof_warmup and (frame_idx - prof_reset_frame) >= prof_every:
+                wall = time.perf_counter() - prof_t0
+                fps = float(prof_frames) / max(1e-9, wall)
+                msg = (
+                    f"[profile] fps={fps:.1f} "
+                    f"pre={prof_pre*1000/prof_frames:.1f}ms "
+                    f"depth={prof_depth*1000/prof_frames:.1f}ms "
+                    f"model+post={prof_modelpost*1000/prof_frames:.1f}ms "
+                    f"track={prof_track*1000/prof_frames:.1f}ms "
+                    f"draw={prof_draw*1000/prof_frames:.1f}ms "
+                    f"write={prof_write*1000/prof_frames:.1f}ms "
+                    f"total={prof_total*1000/prof_frames:.1f}ms"
+                )
+                if device.type == "cuda":
+                    try:
+                        mem_mb = torch.cuda.max_memory_allocated() / (1024**2)
+                        msg += f" vram_peak={mem_mb:.0f}MB"
+                    except Exception:
+                        pass
+                print(msg)
+                # reset window
+                prof_t0 = time.perf_counter()
+                prof_reset_frame = int(frame_idx)
+                prof_frames = 0
+                prof_pre = 0.0
+                prof_depth = 0.0
+                prof_modelpost = 0.0
+                prof_track = 0.0
+                prof_draw = 0.0
+                prof_write = 0.0
+                prof_total = 0.0
 
         frame_idx += 1
         if args.max_frames is not None and frame_idx >= int(args.max_frames):
