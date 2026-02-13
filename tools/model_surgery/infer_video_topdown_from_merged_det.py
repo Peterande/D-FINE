@@ -314,7 +314,7 @@ def main():
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         x_full = tfm_full(Image.fromarray(rgb)).unsqueeze(0).to(device)
-        orig_size_full = torch.tensor([[w0, h0]], device=device)
+        orig_size_full = torch.tensor([[h0, w0]], device=device)
 
         with torch.no_grad():
             out = merged_model(x_full)
@@ -349,7 +349,7 @@ def main():
             crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
             x_crop = tfm_crop(Image.fromarray(crop_rgb)).unsqueeze(0).to(device)
             crop_h, crop_w = crop.shape[:2]
-            orig_size_crop = torch.tensor([[crop_w, crop_h]], device=device)
+            orig_size_crop = torch.tensor([[crop_h, crop_w]], device=device)
 
             with torch.no_grad():
                 pose_out = pose_model(x_crop)

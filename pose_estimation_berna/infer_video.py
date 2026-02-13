@@ -849,6 +849,40 @@ def main():
                 pass
         with torch.no_grad():
             outputs = model(x)
+            # Optionally fuse detector boxes and pose keypoints into a more robust bbox.
+            # This is a lightweight, safe attempt: if the fusion helper is available and
+            # the model produced both `pred_boxes` and `pred_keypoints`, call it and
+            # attach `pred_boxes_fused` back into the outputs dict for downstream use.
+            try:
+                from pose_estimation_berna.core.postprocess_box_fusion import fuse_det_and_pose_boxes  # noqa: WPS433
+            except Exception:
+                fuse_det_and_pose_boxes = None
+
+            if (
+                fuse_det_and_pose_boxes is not None
+                and isinstance(outputs, dict)
+                and "pred_boxes" in outputs
+                and "pred_keypoints" in outputs
+            ):
+                # If boxes are normalized cxcywh, the fusion helper should handle conversion.
+                # Here we reshape keypoints to [B, Q, 17, 2] normalized coords expected by fusion.
+                try:
+                    det_boxes = outputs["pred_boxes"]
+                    kpts = outputs["pred_keypoints"].view(
+                        outputs["pred_keypoints"].shape[0], outputs["pred_keypoints"].shape[1], 17, 2
+                    )
+                    fused_boxes = fuse_det_and_pose_boxes(
+                        det_boxes_xyxy=det_boxes,
+                        pose_keypoints_xy_norm=kpts,
+                        orig_wh=orig_size,  # [B,2] w,h
+                        ex=0.15,
+                        ey_top=0.20,
+                        ey_bot=0.30,
+                    )
+                    outputs["pred_boxes_fused"] = fused_boxes
+                except Exception:
+                    # Be defensive: don't fail inference if fusion errors.
+                    pass
             try:
                 results = post(outputs, orig_size)
             except KeyError as e:
@@ -1248,5 +1282,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

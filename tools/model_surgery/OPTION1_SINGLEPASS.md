@@ -46,9 +46,14 @@ python tools/model_surgery/infer_video_singlepass_x.py \
   --device cuda \
   --image-size 640 \
   --score-thr 0.35 \
+  --pose-score-thr 0.35 \
   --kpt-thr 0.35 \
   --match-min-iou 0.10 \
+  --max-center-dist-ratio 0.45 \
+  --fallback-min-match-rate 0.80 \
+  --pose-orig-size-order auto \
   --seg-feature-dim 384 \
+  --debug-no-tracker \
   --profile
 ```
 
@@ -59,3 +64,23 @@ python tools/model_surgery/infer_video_singlepass_x.py \
   - øk `--score-thr` til `0.40`
 - Hvis for få keypoints tegnes:
   - senk `--kpt-thr` til `0.30`
+
+
+Fallback-strategi: scriptet bruker IoU+center-basert matching først, og faller tilbake til center-only matching når match-rate blir lavere enn `--fallback-min-match-rate`.
+
+
+### Diagnose for mulig w/h-swap i pose postprocess
+
+Kjør samme video med eksplisitt størrelse-rekkefølge for pose-mapping:
+
+```bash
+# Normal mapping (w,h)
+python -m tools.model_surgery.infer_video_singlepass_x ... --pose-orig-size-order wh --profile
+
+# Tvunget swap (h,w)
+python -m tools.model_surgery.infer_video_singlepass_x ... --pose-orig-size-order hw --profile
+```
+
+Hvis `hw` gir tydelig bedre keypoint-plassering, tyder det på coordinate-order mismatch i postprocess-input for akkurat denne modellen/configen.
+
+- Det-filter i scriptet prioriterer nå eksplisitt COCO person-kategori (`label==1`) og fallbacker til `[0,1]` hvis mapping ikke er aktiv.

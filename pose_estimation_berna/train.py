@@ -176,6 +176,24 @@ def parse_args():
         help="Override config dataset.image_size (square resize). Example: --image-size 896",
     )
     p.add_argument(
+        "--lr",
+        type=float,
+        default=None,
+        help=(
+            "Override training.learning_rate. On --resume we restore optimizer state (incl. LR), "
+            "then rescale all param-group LRs to match this base LR (keeping their relative ratios)."
+        ),
+    )
+    p.add_argument(
+        "--lr-mult",
+        type=float,
+        default=None,
+        help=(
+            "Multiply current optimizer LR(s) by this factor (useful for LR-drop on resume, e.g. --lr-mult 0.1). "
+            "Applied after restoring optimizer state."
+        ),
+    )
+    p.add_argument(
         "--best-metric",
         default="auto",
         choices=["auto", "coco_ap_keypoints", "oks"],
@@ -208,6 +226,10 @@ def main():
         cfg.setdefault("dataset", {})
         cfg["dataset"]["image_size"] = int(args.image_size)
         print(f"🖼️ Overriding dataset.image_size -> {cfg['dataset']['image_size']}")
+    if args.lr is not None:
+        cfg.setdefault("training", {})
+        cfg["training"]["learning_rate"] = float(args.lr)
+        print(f"📉 Overriding training.learning_rate -> {cfg['training']['learning_rate']}")
 
     device = get_device(args.device)
     print(f"🚀 Using device: {device}")
@@ -672,6 +694,32 @@ def main():
                 print("🔁 Restored AMP scaler state from checkpoint.")
         except Exception as e:
             print(f"⚠️ Could not restore AMP scaler state: {e}")
+
+    # Optional LR override on resume (or fresh run).
+    # Important: optimizer.load_state_dict(...) restores LR values from checkpoint; so apply overrides AFTER restore.
+    if args.lr_mult is not None:
+        mult = float(args.lr_mult)
+        if mult <= 0:
+            raise ValueError(f"--lr-mult must be > 0, got {mult}")
+        for g in optimizer.param_groups:
+            if "lr" in g:
+                g["lr"] = float(g["lr"]) * mult
+        print(f"📉 Applied LR multiplier: x{mult:g}")
+    if args.lr is not None:
+        new_base = float(args.lr)
+        if not optimizer.param_groups:
+            raise RuntimeError("Optimizer has no param_groups; cannot apply --lr.")
+        old_base = float(optimizer.param_groups[0].get("lr", 0.0) or 0.0)
+        if old_base <= 0:
+            for g in optimizer.param_groups:
+                g["lr"] = new_base
+            print(f"📉 Set all optimizer param-group LRs to {new_base:g} (could not infer old base LR).")
+        else:
+            scale = new_base / old_base
+            for g in optimizer.param_groups:
+                if "lr" in g:
+                    g["lr"] = float(g["lr"]) * scale
+            print(f"📉 Rescaled optimizer LRs by x{scale:g} to match base LR={new_base:g}")
     run_name = str(args.run_name) if args.run_name else str(args.tier)
     # IMPORTANT: make output dir stable regardless of current working directory (avoid nested outputs/.../outputs/...).
     out_base = Path(cfg.get("output", {}).get("base_dir", "outputs/pose"))

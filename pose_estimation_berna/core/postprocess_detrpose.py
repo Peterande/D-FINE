@@ -72,13 +72,29 @@ class DETRPosePostProcessor(nn.Module):
         orig_wh = orig_target_sizes.to(dtype=kpts_xy.dtype)  # [B,2] (w,h)
         kpts_px = kpts_xy * orig_wh[:, None, None, :]  # [B,top,K,2]
 
-        # Tight box around keypoints (in original px)
+        # Build a robust box around keypoints (in original px).
+        # Using strict min/max is very sensitive to a single outlier keypoint.
         x = kpts_px[..., 0]
         y = kpts_px[..., 1]
-        x1 = x.min(dim=-1).values
-        y1 = y.min(dim=-1).values
-        x2 = x.max(dim=-1).values
-        y2 = y.max(dim=-1).values
+        try:
+            x1 = torch.quantile(x, 0.02, dim=-1)
+            y1 = torch.quantile(y, 0.02, dim=-1)
+            x2 = torch.quantile(x, 0.98, dim=-1)
+            y2 = torch.quantile(y, 0.98, dim=-1)
+        except Exception:
+            x1 = x.min(dim=-1).values
+            y1 = y.min(dim=-1).values
+            x2 = x.max(dim=-1).values
+            y2 = y.max(dim=-1).values
+
+        # small padding for visualization stability
+        pad = 0.05
+        bw = (x2 - x1).clamp(min=1.0)
+        bh = (y2 - y1).clamp(min=1.0)
+        x1 = x1 - pad * bw
+        x2 = x2 + pad * bw
+        y1 = y1 - pad * bh
+        y2 = y2 + pad * bh
 
         w_img = orig_wh[:, 0].view(B, 1)
         h_img = orig_wh[:, 1].view(B, 1)
