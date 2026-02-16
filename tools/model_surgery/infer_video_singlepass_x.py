@@ -16,6 +16,13 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
+# Ensure repo root and common packages are on sys.path when running script directly
+REPO = Path(__file__).resolve().parents[2]
+for p in [REPO, REPO / "src", REPO / "tools", REPO / "segmentation_sivert", REPO / "pose_estimation_berna"]:
+    sp = str(p)
+    if sp not in sys.path:
+        sys.path.insert(0, sp)
+
 from tools.model_surgery.shared_arch import SegmentationHead, SharedBackboneDualDecoder
 
 COCO_SKELETON = [
