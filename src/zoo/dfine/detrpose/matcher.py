@@ -126,22 +126,44 @@ class HungarianMatcherDETRPose(nn.Module):
         vis_rep = V_gt.repeat_interleave(2, dim=1)  # [sumN,2K]
         cost_keypoints = (cost_keypoints * vis_rep[None, :, :]).sum(-1)  # [B*Q,sumN]
 
-        # OKS cost (1-oks)
+        # OKS cost (1-oks) -- guarded against NaN/Inf and degenerate areas
         sigmas = _coco_sigmas(self.num_keypoints, device=out_kpt.device, dtype=out_kpt.dtype)
         variances = (sigmas * 2) ** 2  # [K]
         kpt_preds = out_kpt.reshape(-1, self.num_keypoints, 2)
         kpt_gts = Z_gt.reshape(-1, self.num_keypoints, 2)
+
+        # squared distance per keypoint, normalized in resized image space
         d2 = (kpt_preds[:, None, :, 0] - kpt_gts[None, :, :, 0]) ** 2 + (kpt_preds[:, None, :, 1] - kpt_gts[None, :, :, 1]) ** 2
-        # convert normalized dist to pixel dist by multiplying by max(w,h) proxy.
-        # Use sqrt(area) as a scale proxy; it cancels out with area in denom to keep units stable.
-        scale = torch.sqrt(tgt_area.clamp(min=1.0))  # [sumN]
+
+        # Use sqrt(area) as a scale proxy; ensure areas are positive and finite
+        safe_tgt_area = tgt_area.clone()
+        safe_tgt_area[~torch.isfinite(safe_tgt_area)] = 1.0
+        safe_tgt_area = safe_tgt_area.clamp(min=1.0)
+        scale = torch.sqrt(safe_tgt_area)  # [sumN]
+
+        # convert normalized dist to pixel dist by multiplying by scale^2
         d2 = d2 * (scale[None, :, None] ** 2)
-        oks = torch.exp(-d2 / (tgt_area[None, :, None] * variances[None, None, :] * 2 + 1e-6)) * V_gt[None, :, :]
+
+        # Replace any non-finite d2 with large numbers to force low OKS
+        if not torch.isfinite(d2).all():
+            d2 = torch.where(torch.isfinite(d2), d2, torch.full_like(d2, 1e6))
+
+        denom = (safe_tgt_area[None, :, None] * variances[None, None, :] * 2.0)
+        # Prevent extremely small denominators that cause huge exponent values
+        denom = denom.clamp(min=1e-4)
+        oks = torch.exp(-d2 / denom) * V_gt[None, :, :]
         oks = oks.sum(dim=-1) / (V_gt.sum(dim=-1).clamp(min=1.0)[None, :])
-        cost_oks = 1.0 - oks.clamp(min=1e-6)
+
+        # clamp oks into reasonable range and compute cost
+        oks = oks.clamp(min=0.0, max=1.0)
+        cost_oks = (1.0 - oks).clamp(min=0.0, max=1.0)
 
         C = self.cost_class * cost_class + self.cost_keypoints * cost_keypoints + self.cost_oks * cost_oks
         C = C.view(bs, num_queries, -1).cpu()
+
+        # Replace any remaining NaN/Inf with large finite values so Hungarian never crashes
+        C = torch.nan_to_num(C, nan=100.0, posinf=100.0, neginf=-100.0)
+
         sizes_split = [len(v["boxes"]) for v in targets]
         indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes_split, -1))]
         indices = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]

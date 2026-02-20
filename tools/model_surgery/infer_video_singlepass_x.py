@@ -7,8 +7,10 @@ import argparse
 import os
 import sys
 import time
+import subprocess
 from pathlib import Path
 from typing import List, Tuple
+from urllib.parse import urlparse
 
 import cv2
 import numpy as np
@@ -96,12 +98,38 @@ def iou_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.where(union > 1e-9, inter / union, 0.0).astype(np.float32)
 
 
-def pose_boxes_from_keypoints(kpts: np.ndarray) -> np.ndarray:
+def pose_boxes_from_keypoints(
+    kpts: np.ndarray,
+    kpt_thr: float = 0.35,
+    min_visible_kpts: int = 4,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build per-person pose boxes from reliable keypoints only.
+
+    Returns:
+      boxes [N,4], valid_mask [N]
+    """
     if kpts.size == 0:
-        return np.zeros((0, 4), dtype=np.float32)
-    x = kpts[..., 0]
-    y = kpts[..., 1]
-    return np.stack([x.min(axis=1), y.min(axis=1), x.max(axis=1), y.max(axis=1)], axis=-1).astype(np.float32)
+        return np.zeros((0, 4), dtype=np.float32), np.zeros((0,), dtype=bool)
+
+    n = int(kpts.shape[0])
+    boxes = np.zeros((n, 4), dtype=np.float32)
+    valid = np.zeros((n,), dtype=bool)
+
+    for i in range(n):
+        xy = kpts[i, :, :2]
+        s = kpts[i, :, 2]
+        keep = np.isfinite(xy).all(axis=1) & np.isfinite(s) & (s >= float(kpt_thr))
+        if int(keep.sum()) < int(min_visible_kpts):
+            continue
+        pts = xy[keep]
+        x1, y1 = float(pts[:, 0].min()), float(pts[:, 1].min())
+        x2, y2 = float(pts[:, 0].max()), float(pts[:, 1].max())
+        if x2 <= x1 or y2 <= y1:
+            continue
+        boxes[i] = np.array([x1, y1, x2, y2], dtype=np.float32)
+        valid[i] = True
+
+    return boxes, valid
 
 
 def _box_centers_xy(boxes: np.ndarray) -> np.ndarray:
@@ -183,11 +211,23 @@ def fallback_assign_by_center(
     return pairs
 
 
-def _candidate_pose_quality(det_boxes: np.ndarray, pose_kpts: np.ndarray) -> float:
+def _candidate_pose_quality(
+    det_boxes: np.ndarray,
+    pose_kpts: np.ndarray,
+    kpt_thr: float,
+    min_visible_kpts: int,
+) -> float:
     """Higher is better. Uses average best IoU(det -> pose-box)."""
     if det_boxes.size == 0 or pose_kpts.size == 0:
         return 0.0
-    pose_boxes = pose_boxes_from_keypoints(pose_kpts)
+    pose_boxes, valid = pose_boxes_from_keypoints(
+        pose_kpts,
+        kpt_thr=float(kpt_thr),
+        min_visible_kpts=int(min_visible_kpts),
+    )
+    pose_boxes = pose_boxes[valid]
+    if pose_boxes.size == 0:
+        return 0.0
     iou = iou_matrix(det_boxes, pose_boxes)
     if iou.size == 0:
         return 0.0
@@ -234,6 +274,66 @@ def build_model_from_merged(
     return model, det_cfg
 
 
+class FFmpegWriter:
+    """Write mp4 via ffmpeg/libx264 for broader player compatibility."""
+
+    def __init__(self, out_path: str, fps: float, size_wh: Tuple[int, int]):
+        w, h = size_wh
+        out_str = str(out_path)
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "rawvideo",
+            "-vcodec",
+            "rawvideo",
+            "-pix_fmt",
+            "bgr24",
+            "-s",
+            f"{int(w)}x{int(h)}",
+            "-r",
+            str(float(fps)),
+            "-i",
+            "-",
+            "-an",
+            "-vcodec",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+        ]
+        if out_str.startswith("rtsp://"):
+            cmd += ["-f", "rtsp", "-rtsp_transport", "tcp", out_str]
+        elif out_str.startswith("udp://"):
+            cmd += ["-f", "mpegts", out_str]
+        else:
+            cmd += [out_str]
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def isOpened(self) -> bool:
+        return self.proc is not None and self.proc.stdin is not None
+
+    def write(self, frame_bgr: np.ndarray):
+        if self.proc is None or self.proc.stdin is None:
+            return
+        self.proc.stdin.write(frame_bgr.tobytes())
+
+    def release(self):
+        if self.proc is None:
+            return
+        if self.proc.stdin is not None:
+            try:
+                self.proc.stdin.close()
+            except Exception:
+                pass
+        try:
+            self.proc.wait(timeout=30)
+        except Exception:
+            try:
+                self.proc.kill()
+            except Exception:
+                pass
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--det-config", required=True)
@@ -241,13 +341,21 @@ def main():
     ap.add_argument("--merged-ckpt", required=True)
     ap.add_argument("--input", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--use-ffmpeg", action="store_true",
+                    help="Write output with ffmpeg/libx264 (usually best for VS Code preview).")
+    ap.add_argument("--video-codec", default="auto",
+                    help="Video codec FourCC (e.g. avc1, H264, mp4v, VP90). Use 'auto' for extension-based selection.")
     ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     ap.add_argument("--image-size", type=int, default=640)
     ap.add_argument("--score-thr", type=float, default=0.35)
     ap.add_argument("--kpt-thr", type=float, default=0.35)
     ap.add_argument("--pose-score-thr", type=float, default=None)
-    ap.add_argument("--match-min-iou", type=float, default=0.10)
-    ap.add_argument("--max-center-dist-ratio", type=float, default=0.45)
+    ap.add_argument("--pose-box-kpt-thr", type=float, default=0.35,
+                    help="Min keypoint score used when building pose boxes for det<->pose matching.")
+    ap.add_argument("--pose-box-min-kpts", type=int, default=4,
+                    help="Minimum confident keypoints required to keep a pose candidate for matching.")
+    ap.add_argument("--match-min-iou", type=float, default=0.15)
+    ap.add_argument("--max-center-dist-ratio", type=float, default=0.40)
     ap.add_argument("--fallback-min-match-rate", type=float, default=0.80)
     ap.add_argument("--pose-orig-size-order", choices=["wh", "hw", "auto"], default="auto")
     ap.add_argument("--seg-alpha", type=float, default=0.30)
@@ -256,6 +364,10 @@ def main():
     ap.add_argument("--seg-dropout", type=float, default=0.1)
     ap.add_argument("--max-persons", type=int, default=8)
     ap.add_argument("--max-frames", type=int, default=None)
+    ap.add_argument("--live-basic", action="store_true",
+                    help="Basic live test mode: draw top pose predictions directly (no tracker, no det-pose matching).")
+    ap.add_argument("--live-basic-no-seg", action="store_true",
+                    help="When --live-basic is enabled, draw on raw frame (no segmentation overlay).")
     ap.add_argument("--profile", action="store_true")
     ap.add_argument("--debug-no-tracker", action="store_true")
     ap.add_argument("--debug-first-frame", action="store_true")
@@ -305,34 +417,86 @@ def main():
         raise RuntimeError("Could not read first frame")
 
     h0, w0 = frame.shape[:2]
-    writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), (w0, h0))
+    out_target = str(args.out)
+    out_is_url = bool(urlparse(out_target).scheme in ("rtsp", "udp"))
+    out_path: Path | None = None
+    if not out_is_url:
+        out_path = Path(out_target)
+        if not out_path.is_absolute():
+            out_path = (repo / out_path).resolve()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_target = str(out_path)
 
-    tracker = KalmanTracker(
-        iou_threshold=0.3,
-        oks_threshold=1.0,
-        max_age=30,
-        smooth_alpha=0.8,
-        smooth_boxes=True,
-        smooth_keypoints=True,
-        min_area_ratio=0.6,
-        score_decay=0.98,
-        score_decay_grace=0,
-        score_ema=0.8,
-        iou_weight=1.0,
-        oks_weight=0.0,
-        kpt_thr=float(args.kpt_thr),
-        kpt_age_decay=0.97,
-        fps=float(fps),
-        occlusion_ttl_sec=1.0,
-        q_inflate_alpha=0.02,
-        p_inflate_per_frame=1.02,
-        size_clamp_min_scale=0.7,
-        size_clamp_max_scale=1.3,
-        uncertainty_rel=0.35,
-        uncertainty_abs_px=80.0,
-        out_of_frame_max=5,
-        new_track_score_thr=float(args.score_thr),
-    )
+    ext = Path(out_target).suffix.lower() if not out_is_url else ".mp4"
+    if args.video_codec.lower() != "auto":
+        codec_candidates = [args.video_codec]
+    elif ext == ".mp4":
+        # Prefer browser/VS Code friendly H.264 first, then fallback.
+        codec_candidates = ["avc1", "H264", "mp4v"]
+    elif ext == ".webm":
+        codec_candidates = ["VP90", "VP80"]
+    elif ext == ".avi":
+        codec_candidates = ["XVID", "MJPG"]
+    else:
+        codec_candidates = ["mp4v"]
+
+    writer = None
+    used_codec = None
+    if args.use_ffmpeg or out_is_url:
+        try:
+            writer = FFmpegWriter(out_target, float(fps), (w0, h0))
+            if writer.isOpened():
+                used_codec = "ffmpeg/libx264"
+            else:
+                writer = None
+        except Exception as e:
+            print(f"[WARN] ffmpeg writer failed: {e}. Falling back to OpenCV writer.")
+            writer = None
+
+    if writer is None and not out_is_url:
+        for c in codec_candidates:
+            w_try = cv2.VideoWriter(out_target, cv2.VideoWriter_fourcc(*c), float(fps), (w0, h0))
+            if w_try.isOpened():
+                writer = w_try
+                used_codec = c
+                break
+            w_try.release()
+
+    if writer is None:
+        raise RuntimeError(
+            f"Could not create video writer for {out_target} with codecs {codec_candidates}. "
+            "Try --out <file>.mp4 --video-codec mp4v"
+        )
+    print(f"[writer] path={out_target} codec={used_codec} fps={fps:.2f} size={w0}x{h0}")
+
+    tracker = None
+    if not args.live_basic:
+        tracker = KalmanTracker(
+            iou_threshold=0.3,
+            oks_threshold=1.0,
+            max_age=30,
+            smooth_alpha=0.8,
+            smooth_boxes=True,
+            smooth_keypoints=True,
+            min_area_ratio=0.6,
+            score_decay=0.98,
+            score_decay_grace=0,
+            score_ema=0.8,
+            iou_weight=1.0,
+            oks_weight=0.0,
+            kpt_thr=float(args.kpt_thr),
+            kpt_age_decay=0.97,
+            fps=float(fps),
+            occlusion_ttl_sec=1.0,
+            q_inflate_alpha=0.02,
+            p_inflate_per_frame=1.02,
+            size_clamp_min_scale=0.7,
+            size_clamp_max_scale=1.3,
+            uncertainty_rel=0.35,
+            uncertainty_abs_px=80.0,
+            out_of_frame_max=5,
+            new_track_score_thr=float(args.score_thr),
+        )
 
     frame_idx = 0
     t_acc = 0.0
@@ -407,8 +571,18 @@ def main():
                 pose_kpts_f = pose_kpts_hw_f
                 pose_order_used = "hw"
             else:
-                q_wh = _candidate_pose_quality(det_boxes_f, pose_kpts_f)
-                q_hw = _candidate_pose_quality(det_boxes_f, pose_kpts_hw_f)
+                q_wh = _candidate_pose_quality(
+                    det_boxes_f,
+                    pose_kpts_f,
+                    kpt_thr=float(args.pose_box_kpt_thr),
+                    min_visible_kpts=int(args.pose_box_min_kpts),
+                )
+                q_hw = _candidate_pose_quality(
+                    det_boxes_f,
+                    pose_kpts_hw_f,
+                    kpt_thr=float(args.pose_box_kpt_thr),
+                    min_visible_kpts=int(args.pose_box_min_kpts),
+                )
                 if q_hw > q_wh:
                     pose_scores_f = pose_scores_hw_f
                     pose_kpts_f = pose_kpts_hw_f
@@ -441,13 +615,32 @@ def main():
             if dkeep.size > 0:
                 print(f"[DEBUG] first det box: {det_boxes[int(dkeep[0])]}")
 
-            q_wh_dbg = _candidate_pose_quality(det_boxes_f, pose_kpts_wh[pkeep_wh] if pkeep_wh.size > 0 else np.zeros((0, 17, 3), dtype=np.float32))
+            q_wh_dbg = _candidate_pose_quality(
+                det_boxes_f,
+                pose_kpts_wh[pkeep_wh] if pkeep_wh.size > 0 else np.zeros((0, 17, 3), dtype=np.float32),
+                kpt_thr=float(args.pose_box_kpt_thr),
+                min_visible_kpts=int(args.pose_box_min_kpts),
+            )
             q_hw_dbg = 0.0
             if pose_res_hw is not None:
-                q_hw_dbg = _candidate_pose_quality(det_boxes_f, pose_kpts_hw[pkeep_hw] if pkeep_hw.size > 0 else np.zeros((0, 17, 3), dtype=np.float32))
+                q_hw_dbg = _candidate_pose_quality(
+                    det_boxes_f,
+                    pose_kpts_hw[pkeep_hw] if pkeep_hw.size > 0 else np.zeros((0, 17, 3), dtype=np.float32),
+                    kpt_thr=float(args.pose_box_kpt_thr),
+                    min_visible_kpts=int(args.pose_box_min_kpts),
+                )
             print(f"[DEBUG] auto quality: wh={q_wh_dbg:.4f} hw={q_hw_dbg:.4f} selected={pose_order_used}")
 
-        pose_boxes_f = pose_boxes_from_keypoints(pose_kpts_f)
+        pose_boxes_f, pose_valid = pose_boxes_from_keypoints(
+            pose_kpts_f,
+            kpt_thr=float(args.pose_box_kpt_thr),
+            min_visible_kpts=int(args.pose_box_min_kpts),
+        )
+        if pose_boxes_f.shape[0] > 0:
+            keep_valid = np.where(pose_valid)[0]
+            pose_boxes_f = pose_boxes_f[keep_valid]
+            pose_scores_f = pose_scores_f[keep_valid]
+            pose_kpts_f = pose_kpts_f[keep_valid]
 
         pairs = greedy_match(
             det_boxes_f,
@@ -478,7 +671,25 @@ def main():
         if args.profile and args.pose_orig_size_order == "auto" and frame_idx % 60 == 0:
             print(f"[pose-size-order] frame={frame_idx} used={pose_order_used}")
 
-        if args.debug_no_tracker:
+        if args.live_basic:
+            vis = frame.copy() if args.live_basic_no_seg else overlay_seg(frame.copy(), seg_map, alpha=float(args.seg_alpha))
+            if pose_scores_f.shape[0] > 0:
+                order = np.argsort(pose_scores_f)[::-1][: int(args.max_persons)]
+                for idx, pi in enumerate(order):
+                    box = pose_boxes_f[int(pi)]
+                    kpt = pose_kpts_f[int(pi)]
+                    score = float(pose_scores_f[int(pi)])
+                    cv2.putText(
+                        vis,
+                        f"pose {idx} {score:.2f}",
+                        (int(box[0]), max(0, int(box[1]) - 6)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2,
+                    )
+                    draw_pose(vis, box, kpt, kpt_thr=float(args.kpt_thr))
+        elif args.debug_no_tracker:
             track_out = []
             if len(pairs) > 0:
                 for idx, (di, pi) in enumerate(pairs):
@@ -510,23 +721,27 @@ def main():
             m_kpts = np.asarray([pose_kpts_f[pi] for _, pi in pairs], dtype=np.float32)
             track_out = tracker.update(m_boxes, m_scores, m_kpts, None, img_wh=(int(w0), int(h0)))
 
-        vis = overlay_seg(frame.copy(), seg_map, alpha=float(args.seg_alpha))
-        for t in track_out:
-            box = t.box_smooth if t.box_smooth is not None else t.box_xyxy
-            kpt = t.kpt_smooth if t.kpt_smooth is not None else t.keypoints
-            cv2.putText(
-                vis,
-                f"id {int(t.track_id)} person {float(t.score):.2f}",
-                (int(box[0]), max(0, int(box[1]) - 6)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2,
-            )
-            if kpt is not None:
-                draw_pose(vis, box, kpt, kpt_thr=float(args.kpt_thr))
+            vis = overlay_seg(frame.copy(), seg_map, alpha=float(args.seg_alpha))
+            for t in track_out:
+                box = t.box_smooth if t.box_smooth is not None else t.box_xyxy
+                kpt = t.kpt_smooth if t.kpt_smooth is not None else t.keypoints
+                cv2.putText(
+                    vis,
+                    f"id {int(t.track_id)} person {float(t.score):.2f}",
+                    (int(box[0]), max(0, int(box[1]) - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
+                )
+                if kpt is not None:
+                    draw_pose(vis, box, kpt, kpt_thr=float(args.kpt_thr))
 
-        writer.write(vis)
+        try:
+            writer.write(vis)
+        except BrokenPipeError:
+            print("[WARN] Output stream closed (BrokenPipe). Stopping inference loop.")
+            break
 
         if args.profile:
             if device.type == "cuda":
@@ -546,7 +761,7 @@ def main():
     writer.release()
     if args.profile and n_acc > 0:
         print(f"[final-profile] avg={t_acc / n_acc:.2f} ms/frame | match_rate={match_acc / max(1, frame_idx):.2f}")
-    print(f"[saved] {args.out}")
+    print(f"[saved] {out_target}")
 
 
 if __name__ == "__main__":

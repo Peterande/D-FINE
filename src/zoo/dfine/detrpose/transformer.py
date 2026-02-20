@@ -157,7 +157,11 @@ class DeformableTransformerDecoderLayer(nn.Module):
     def with_pos_embed(tensor, pos):
         if pos is not None:
             np_ = pos.shape[2]
-            tensor[:, :, -np_:] += pos
+            # Avoid in-place modification which breaks autograd when `tensor` requires_grad.
+            # Create a new tensor for the addition to keep the computational graph intact.
+            out = tensor.clone()
+            out[:, :, -np_:] = out[:, :, -np_:] + pos
+            return out
         return tensor
 
     def forward_FFN(self, tgt):
