@@ -14,3 +14,4 @@ venv/
 pose_debug_*.jpg
 pose_test*.jpg
 DETRPose
+.vscode/

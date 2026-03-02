@@ -346,6 +346,11 @@ def main():
     ap.add_argument("--video-codec", default="auto",
                     help="Video codec FourCC (e.g. avc1, H264, mp4v, VP90). Use 'auto' for extension-based selection.")
     ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    ap.add_argument("--amp", action="store_true", help="Enable mixed precision inference on CUDA.")
+    ap.add_argument("--channels-last", action="store_true",
+                    help="Use channels-last memory format on CUDA for potential throughput gains.")
+    ap.add_argument("--cudnn-benchmark", action="store_true",
+                    help="Enable cudnn benchmark (best when input shape is fixed).")
     ap.add_argument("--image-size", type=int, default=640)
     ap.add_argument("--score-thr", type=float, default=0.35)
     ap.add_argument("--kpt-thr", type=float, default=0.35)
@@ -395,6 +400,11 @@ def main():
 
     device = torch.device(args.device if (args.device == "cpu" or torch.cuda.is_available()) else "cpu")
     model = model.to(device).eval()
+    use_amp = bool(args.amp and device.type == "cuda")
+    if device.type == "cuda" and args.cudnn_benchmark:
+        torch.backends.cudnn.benchmark = True
+    if device.type == "cuda" and args.channels_last:
+        model = model.to(memory_format=torch.channels_last)
 
     det_post = det_cfg.postprocessor.to(device).eval()
     if hasattr(det_post, "remap_mscoco_category"):
@@ -502,6 +512,9 @@ def main():
     t_acc = 0.0
     n_acc = 0
     match_acc = 0.0
+    t_model = 0.0
+    t_post = 0.0
+    t_render = 0.0
     pose_score_thr = float(args.pose_score_thr) if args.pose_score_thr is not None else float(args.score_thr)
 
     while True:
@@ -516,12 +529,16 @@ def main():
         t0 = time.perf_counter()
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        x = tfm(Image.fromarray(rgb)).unsqueeze(0).to(device)
+        x = tfm(Image.fromarray(rgb)).unsqueeze(0).to(device, non_blocking=True)
+        if device.type == "cuda" and args.channels_last:
+            x = x.contiguous(memory_format=torch.channels_last)
         orig_size_wh = torch.tensor([[w0, h0]], device=device)
         orig_size_hw = torch.tensor([[h0, w0]], device=device)
 
-        with torch.no_grad():
-            outputs = model(x)
+        t_model0 = time.perf_counter()
+        with torch.inference_mode():
+            with torch.amp.autocast("cuda", enabled=use_amp):
+                outputs = model(x)
             det_dict = {"pred_logits": outputs["det.pred_logits"], "pred_boxes": outputs["det.pred_boxes"]}
             det_res = det_post(det_dict, orig_size_wh)[0]
 
@@ -531,7 +548,9 @@ def main():
 
             seg_logits = outputs["seg.logits"]
             seg_map = torch.argmax(seg_logits, dim=1)[0].detach().cpu().numpy().astype(np.uint8)
+        dt_model = time.perf_counter() - t_model0
 
+        t_post0 = time.perf_counter()
         det_labels = det_res["labels"].detach().cpu().numpy()
         det_scores = det_res["scores"].detach().cpu().numpy()
         det_boxes = det_res["boxes"].detach().cpu().numpy().astype(np.float32)
@@ -670,7 +689,9 @@ def main():
         match_acc += match_rate
         if args.profile and args.pose_orig_size_order == "auto" and frame_idx % 60 == 0:
             print(f"[pose-size-order] frame={frame_idx} used={pose_order_used}")
+        dt_post = time.perf_counter() - t_post0
 
+        t_render0 = time.perf_counter()
         if args.live_basic:
             vis = frame.copy() if args.live_basic_no_seg else overlay_seg(frame.copy(), seg_map, alpha=float(args.seg_alpha))
             if pose_scores_f.shape[0] > 0:
@@ -689,9 +710,9 @@ def main():
                         2,
                     )
                     draw_pose(vis, box, kpt, kpt_thr=float(args.kpt_thr))
-        elif args.debug_no_tracker:
+        else:
             track_out = []
-            if len(pairs) > 0:
+            if args.debug_no_tracker:
                 for idx, (di, pi) in enumerate(pairs):
                     track_out.append(
                         type(
@@ -707,20 +728,19 @@ def main():
                             },
                         )()
                     )
-        elif len(pairs) == 0:
-            track_out = tracker.update(
-                np.zeros((0, 4), dtype=np.float32),
-                np.zeros((0,), dtype=np.float32),
-                None,
-                None,
-                img_wh=(int(w0), int(h0)),
-            )
-        else:
-            m_boxes = np.asarray([det_boxes_f[di] for di, _ in pairs], dtype=np.float32)
-            m_scores = np.asarray([det_scores_f[di] for di, _ in pairs], dtype=np.float32)
-            m_kpts = np.asarray([pose_kpts_f[pi] for _, pi in pairs], dtype=np.float32)
-            track_out = tracker.update(m_boxes, m_scores, m_kpts, None, img_wh=(int(w0), int(h0)))
-
+            elif len(pairs) == 0:
+                track_out = tracker.update(
+                    np.zeros((0, 4), dtype=np.float32),
+                    np.zeros((0,), dtype=np.float32),
+                    None,
+                    None,
+                    img_wh=(int(w0), int(h0)),
+                )
+            else:
+                m_boxes = np.asarray([det_boxes_f[di] for di, _ in pairs], dtype=np.float32)
+                m_scores = np.asarray([det_scores_f[di] for di, _ in pairs], dtype=np.float32)
+                m_kpts = np.asarray([pose_kpts_f[pi] for _, pi in pairs], dtype=np.float32)
+                track_out = tracker.update(m_boxes, m_scores, m_kpts, None, img_wh=(int(w0), int(h0)))
             vis = overlay_seg(frame.copy(), seg_map, alpha=float(args.seg_alpha))
             for t in track_out:
                 box = t.box_smooth if t.box_smooth is not None else t.box_xyxy
@@ -742,6 +762,7 @@ def main():
         except BrokenPipeError:
             print("[WARN] Output stream closed (BrokenPipe). Stopping inference loop.")
             break
+        dt_render = time.perf_counter() - t_render0
 
         if args.profile:
             if device.type == "cuda":
@@ -750,8 +771,17 @@ def main():
             if frame_idx >= 5:
                 t_acc += dt
                 n_acc += 1
+                t_model += dt_model
+                t_post += dt_post
+                t_render += dt_render
                 if n_acc % 30 == 0:
-                    print(f"[profile] avg={t_acc / max(1, n_acc):.2f} ms/frame | match_rate={match_acc / max(1, frame_idx + 1):.2f}")
+                    print(
+                        f"[profile] avg={t_acc / max(1, n_acc):.2f} ms/frame "
+                        f"(model={1000.0 * t_model / max(1, n_acc):.2f}, "
+                        f"post={1000.0 * t_post / max(1, n_acc):.2f}, "
+                        f"render={1000.0 * t_render / max(1, n_acc):.2f}) "
+                        f"| match_rate={match_acc / max(1, frame_idx + 1):.2f}"
+                    )
 
         frame_idx += 1
         if args.max_frames is not None and frame_idx >= int(args.max_frames):
@@ -760,7 +790,12 @@ def main():
     cap.release()
     writer.release()
     if args.profile and n_acc > 0:
-        print(f"[final-profile] avg={t_acc / n_acc:.2f} ms/frame | match_rate={match_acc / max(1, frame_idx):.2f}")
+        print(
+            f"[final-profile] avg={t_acc / n_acc:.2f} ms/frame "
+            f"(model={1000.0 * t_model / n_acc:.2f}, post={1000.0 * t_post / n_acc:.2f}, "
+            f"render={1000.0 * t_render / n_acc:.2f}) "
+            f"| match_rate={match_acc / max(1, frame_idx):.2f}"
+        )
     print(f"[saved] {out_target}")
 
 

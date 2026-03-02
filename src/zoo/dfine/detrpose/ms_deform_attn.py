@@ -13,6 +13,18 @@ import torch.nn.functional as F
 from torch.nn.init import constant_
 
 
+def _spatial_shapes_to_list(value_spatial_shapes):
+    """Normalize spatial shapes to a Python list of (H, W) ints.
+
+    Using a Python list here avoids tensor iteration/unflatten patterns that are
+    fragile during ONNX/TensorRT export for this module.
+    """
+    if isinstance(value_spatial_shapes, torch.Tensor):
+        # Value is expected static for export (fixed image size).
+        return [(int(h), int(w)) for h, w in value_spatial_shapes.detach().cpu().tolist()]
+    return [(int(h), int(w)) for h, w in value_spatial_shapes]
+
+
 def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations, attention_weights):
     # value: list[L] of tensors shaped [N_*M_, D_, H_*W_] (later unflattened)
     _, D_, _ = value[0].shape
@@ -22,8 +34,10 @@ def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations,
     sampling_grids = sampling_grids.transpose(1, 2).flatten(0, 1)
 
     sampling_value_list = []
-    for lid_, (H_, W_) in enumerate(value_spatial_shapes):
-        value_l_ = value[lid_].unflatten(2, (H_, W_))
+    spatial_shapes_list = _spatial_shapes_to_list(value_spatial_shapes)
+    for lid_, (H_, W_) in enumerate(spatial_shapes_list):
+        # Avoid Tensor.unflatten with symbolic shape values in export paths.
+        value_l_ = value[lid_].reshape(value[lid_].shape[0], D_, H_, W_)
         sampling_grid_l_ = sampling_grids[:, :, lid_]
         sampling_value_l_ = F.grid_sample(
             value_l_, sampling_grid_l_, mode="bilinear", padding_mode="zeros", align_corners=False
@@ -87,11 +101,19 @@ class MSDeformAttn(nn.Module):
         reference_points = torch.transpose(reference_points, 2, 3).flatten(1, 2)
 
         if reference_points.shape[-1] == 2:
-            offset_normalizer = torch.tensor(input_spatial_shapes, device=query.device)
+            # Keep tensor type/device consistent for export/runtime.
+            if isinstance(input_spatial_shapes, torch.Tensor):
+                offset_normalizer = input_spatial_shapes.to(device=query.device, dtype=query.dtype)
+            else:
+                offset_normalizer = torch.as_tensor(input_spatial_shapes, device=query.device, dtype=query.dtype)
             offset_normalizer = offset_normalizer.flip([1]).reshape(1, 1, 1, self.n_levels, 1, 2)
             sampling_locations = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_normalizer
         elif reference_points.shape[-1] == 4:
             if self.use_4D_normalizer:
+                if not isinstance(input_spatial_shapes, torch.Tensor):
+                    input_spatial_shapes = torch.as_tensor(
+                        input_spatial_shapes, device=query.device, dtype=query.dtype
+                    )
                 offset_normalizer = torch.stack(
                     [input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1
                 )

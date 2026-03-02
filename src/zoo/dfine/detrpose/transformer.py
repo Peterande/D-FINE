@@ -438,7 +438,8 @@ class DETRPoseTransformer(nn.Module):
             spatial_shapes.append([h, w])
             split_sizes.append(h * w)
         feat_flatten = torch.concat(feat_flatten, 1)
-        return feat_flatten, torch.tensor(spatial_shapes, device=feats[0].device), split_sizes
+        # Keep spatial shapes as Python list for export stability in DETRPose ms-deform-attn.
+        return feat_flatten, spatial_shapes, split_sizes
 
     def _generate_anchors(self, spatial_shapes=None, device="cpu"):
         if spatial_shapes is None:
@@ -471,7 +472,7 @@ class DETRPoseTransformer(nn.Module):
         memory, spatial_shapes, split_sizes = self._get_encoder_input(feats)
 
         if self.training:
-            output_proposals, valid_mask = self._generate_anchors(spatial_shapes.tolist(), memory.device)
+            output_proposals, valid_mask = self._generate_anchors(spatial_shapes, memory.device)
             output_memory = memory.masked_fill(valid_mask, float(0))
             output_proposals = output_proposals.repeat(memory.size(0), 1, 1)
         else:
