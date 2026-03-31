@@ -181,7 +181,7 @@ class YAMLConfig(BaseConfig):
         if "total_batch_size" in global_cfg[name]:
             # pop unexpected key for dataloader init
             _ = global_cfg[name].pop("total_batch_size")
-        print(f"building {name} with batch_size={bs}...")
+        # print(f"building {name} with batch_size={bs}...")
         loader = create(name, global_cfg, batch_size=bs)
         loader.shuffle = self.yaml_cfg[name].get("shuffle", False)
         return loader

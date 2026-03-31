@@ -63,9 +63,7 @@ def main(args) -> None:
         if "HGNetv2" in cfg.yaml_cfg:
             cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
 
-    if safe_get_rank() == 0:
-        print("cfg: ")
-        pprint(cfg.__dict__)
+    # suppress verbose cfg dump
 
     solver = TASKS[cfg.yaml_cfg["task"]](cfg)
 

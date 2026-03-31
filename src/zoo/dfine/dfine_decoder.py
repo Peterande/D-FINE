@@ -762,8 +762,7 @@ class DFINETransformer(nn.Module):
         else:
             anchors = self.anchors
             valid_mask = self.valid_mask
-        if memory.shape[0] > 1:
-            anchors = anchors.repeat(memory.shape[0], 1, 1)
+        anchors = anchors.expand(memory.shape[0], -1, -1)
 
         # memory = torch.where(valid_mask, memory, 0)
         # TODO fix type error for onnx export

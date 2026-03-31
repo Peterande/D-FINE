@@ -217,13 +217,11 @@ class BaseSolver(object):
         """Load state dict, train/eval"""
         if "last_epoch" in state:
             self.last_epoch = state["last_epoch"]
-            print("Load last_epoch")
 
         for k, v in self.__dict__.items():
             if hasattr(v, "load_state_dict") and k in state:
                 v = dist_utils.de_parallel(v)
                 v.load_state_dict(state[k])
-                print(f"Load {k}.state_dict")
 
             if hasattr(v, "load_state_dict") and k not in state:
                 if k == "ema":
@@ -232,9 +230,6 @@ class BaseSolver(object):
                         ema = dist_utils.de_parallel(v)
                         model_state_dict = remove_module_prefix(model.state_dict())
                         ema.load_state_dict({"module": model_state_dict})
-                        print(f"Load {k}.state_dict from model.state_dict")
-                else:
-                    print(f"Not load {k}.state_dict")
 
     def load_resume_state(self, path: str):
         """Load resume"""
@@ -271,7 +266,8 @@ class BaseSolver(object):
             stat, infos = self._matched_state(module.state_dict(), pretrain_state_dict)
 
         module.load_state_dict(stat, strict=False)
-        print(f"Load model.state_dict, {infos}")
+        if infos.get('missed') or infos.get('unmatched'):
+            print(f"Weight loading: {len(infos.get('missed', []))} missed, {len(infos.get('unmatched', []))} unmatched")
 
     @staticmethod
     def _matched_state(state: Dict[str, torch.Tensor], params: Dict[str, torch.Tensor]):

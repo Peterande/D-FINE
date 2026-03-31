@@ -14,7 +14,10 @@ import numpy as np
 import torch
 import torch.amp
 from torch.cuda.amp.grad_scaler import GradScaler
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except Exception:
+    SummaryWriter = None
 
 from ..data import CocoEvaluator
 from ..data.dataset import mscoco_category2label
@@ -127,7 +130,10 @@ def train_one_epoch(
             print(loss_dict_reduced)
             sys.exit(1)
 
-        metric_logger.update(loss=loss_value, **loss_dict_reduced)
+        # Only log main losses for cleaner output
+        main_losses = {k: v for k, v in loss_dict_reduced.items()
+                       if not any(s in k for s in ('_aux_', '_dn_', '_pre', '_enc_'))}
+        metric_logger.update(loss=loss_value, **main_losses)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         if writer and dist_utils.is_main_process() and global_step % 10 == 0:
@@ -141,9 +147,7 @@ def train_one_epoch(
         wandb.log(
             {"lr": optimizer.param_groups[0]["lr"], "epoch": epoch, "train/loss": np.mean(losses)}
         )
-    # gather the stats from all processes
     metric_logger.synchronize_between_processes()
-    print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 
@@ -175,84 +179,51 @@ def evaluate(
     # coco_evaluator = CocoEvaluator(base_ds, iou_types)
     # coco_evaluator.coco_eval[iou_types[0]].params.iouThrs = [0, 0.1, 0.5, 0.75]
 
-    gt: List[Dict[str, torch.Tensor]] = []
-    preds: List[Dict[str, torch.Tensor]] = []
-
     output_dir = kwargs.get("output_dir", None)
-    num_visualization_sample_batch = kwargs.get("num_visualization_sample_batch", 1)
 
-    for i, (samples, targets) in enumerate(metric_logger.log_every(data_loader, 10, header)):
-        global_step = epoch * len(data_loader) + i
-
-        if global_step < num_visualization_sample_batch and output_dir is not None and dist_utils.is_main_process():
-            save_samples(samples, targets, output_dir, "val", normalized=False, box_fmt="xyxy")
-
+    for samples, targets in data_loader:
         samples = samples.to(device)
         targets = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in targets]
 
         outputs = model(samples)
-        # with torch.autocast(device_type=str(device)):
-        #     outputs = model(samples)
 
-        # TODO (lyuwenyu), fix dataset converted using `convert_to_coco_api`?
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-        # orig_target_sizes = torch.tensor([[samples.shape[-1], samples.shape[-2]]], device=samples.device)
 
         results = postprocessor(outputs, orig_target_sizes)
-
-        # if 'segm' in postprocessor.keys():
-        #     target_sizes = torch.stack([t["size"] for t in targets], dim=0)
-        #     results = postprocessor['segm'](results, outputs, orig_target_sizes, target_sizes)
 
         res = {target["image_id"].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
             coco_evaluator.update(res)
 
-        # validator format for metrics
-        for idx, (target, result) in enumerate(zip(targets, results)):
-            gt.append(
-                {
-                    "boxes": scale_boxes(  # from model input size to original img size
-                        target["boxes"],
-                        (target["orig_size"][1], target["orig_size"][0]),
-                        (samples[idx].shape[-1], samples[idx].shape[-2]),
-                    ),
-                    "labels": target["labels"],
-                }
-            )
-            labels = (
-                torch.tensor([mscoco_category2label[int(x.item())] for x in result["labels"].flatten()])
-                .to(result["labels"].device)
-                .reshape(result["labels"].shape)
-            ) if postprocessor.remap_mscoco_category else result["labels"]
-            preds.append(
-                {"boxes": result["boxes"], "labels": labels, "scores": result["scores"]}
-            )
-
-    # Conf matrix, F1, Precision, Recall, box IoU
-    metrics = Validator(gt, preds).compute_metrics()
-    print("Metrics:", metrics)
-    if use_wandb:
-        metrics = {f"metrics/{k}": v for k, v in metrics.items()}
-        metrics["epoch"] = epoch
-        wandb.log(metrics)
-
-    # gather the stats from all processes
-    metric_logger.synchronize_between_processes()
-    print("Averaged stats:", metric_logger)
     if coco_evaluator is not None:
         coco_evaluator.synchronize_between_processes()
-
-    # accumulate predictions from all images
-    if coco_evaluator is not None:
         coco_evaluator.accumulate()
-        coco_evaluator.summarize()
+        # summarize() populates .stats — suppress its verbose table
+        import io, contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            coco_evaluator.summarize()
+
+        # Print concise YOLO-style validation summary
+        if "bbox" in iou_types:
+            s = coco_evaluator.coco_eval["bbox"].stats
+            if hasattr(s, 'tolist'):
+                s = s.tolist()
+            if s and len(s) > 0:
+                names = ['map', 'map_50', 'map_75', 'map_small', 'map_medium', 'map_large',
+                         'mar_1', 'mar_10', 'mar_100', 'mar_small', 'mar_medium', 'mar_large']
+                metrics = {names[i]: f'{s[i]:.3f}' for i in range(min(len(s), len(names)))}
+                print(f"validation metrics: {metrics}")
+            else:
+                print("validation metrics: no detections")
 
     stats = {}
-    # stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     if coco_evaluator is not None:
         if "bbox" in iou_types:
-            stats["coco_eval_bbox"] = coco_evaluator.coco_eval["bbox"].stats.tolist()
+            s = coco_evaluator.coco_eval["bbox"].stats
+            if hasattr(s, 'tolist'):
+                s = s.tolist()
+            if s and len(s) > 0:
+                stats["coco_eval_bbox"] = s
         if "segm" in iou_types:
             stats["coco_eval_masks"] = coco_evaluator.coco_eval["segm"].stats.tolist()
 
