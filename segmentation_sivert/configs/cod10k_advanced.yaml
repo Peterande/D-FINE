@@ -1,0 +1,34 @@
+# COD10K Pretraining Config (Phase 1)
+# Advanced tier, binary camouflage segmentation
+# Run: python train.py --tier advanced --config-dir configs --dataset data/cod10k --output-dir outputs/cod10k_pretrain
+
+base: "advanced.yaml"
+
+dataset:
+  name: "cod10k"
+  root_dir: "data/cod10k"
+  num_classes: 2
+  class_names: ["background", "camouflaged"]
+  image_size: 640
+
+training:
+  batch_size: 4
+  epochs: 120
+  learning_rate: 0.0003
+
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.5       # Higher — binary task with class imbalance
+  ce_weight: 0.1
+  boundary_weight: 0.5   # Higher — camouflage edges are subtle
+  size_weight: 0.0       # Not relevant for camouflage
+  ignore_index: 255
+
+output:
+  base_dir: "outputs/cod10k_pretrain"
+
+logging:
+  wandb:
+    project: "dfine-camouflage"
+    tags: ["cod10k", "pretrain", "advanced"]

@@ -1,0 +1,49 @@
+# CAMO Fine-tune Config (Phase 2)
+# Fine-tune from COD10K pretrained checkpoint on CAMO dataset
+# Run: python train.py --tier advanced --config-file configs/camo_finetune.yaml \
+#        --output-dir outputs/camo_finetune \
+#        --resume outputs/cod10k_pretrain/best_model.pth \
+#        --no-wandb
+
+base: "advanced.yaml"
+
+dataset:
+  name: "camo"
+  root_dir: "data/camo"
+  num_classes: 2
+  class_names: ["background", "camouflaged"]
+  image_size: 640
+
+training:
+  batch_size: 4
+  epochs: 60
+  learning_rate: 0.00005   # 10x lower than pretraining
+  weight_decay: 0.0001
+
+  scheduler:
+    type: "cosine_warmup"
+    T_0: 10
+    T_mult: 2
+    eta_min: 0.000001
+
+  # Unfreeze backbone sooner — already adapted from COD10K
+  unfreeze_epoch: 10
+  backbone_lr_factor: 0.05
+  multi_scale_training: true
+
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.5
+  ce_weight: 0.1
+  boundary_weight: 0.5
+  size_weight: 0.0
+  ignore_index: 255
+
+output:
+  base_dir: "outputs/camo_finetune"
+
+logging:
+  wandb:
+    project: "dfine-camouflage"
+    tags: ["camo", "finetune", "advanced"]

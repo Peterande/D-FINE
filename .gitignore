@@ -7,6 +7,21 @@ wandb/
 *.mp4
 datasets/
 *.db
-outputs
+outputs/
 *.engine
 venv/
+
+# Editor
+.vscode/
+.history/
+.codex
+
+# Large binary / data folders
+Traning/
+segmentation_sivert/data/
+
+# Cache
+__pycache__/
+*.egg-info/
+.pytest_cache/
+DETRPose/

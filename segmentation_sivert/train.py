@@ -12,7 +12,11 @@ import yaml
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import wandb
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
 from tqdm import tqdm
 from pathlib import Path
 
@@ -23,7 +27,7 @@ if current_dir not in sys.path:
 sys.path.append('src')
 
 # Import core modules
-from core.datasets import create_pascal_dataset
+from core.datasets import create_dataset
 from core.losses import create_loss
 from core.metrics import create_metrics_tracker
 from core.models import load_pretrained_dfine, get_actual_backbone_channels, create_combined_model
@@ -44,12 +48,16 @@ def parse_args():
     # Optional overrides
     parser.add_argument('--config-dir', default='configs',
                         help='Directory containing tier configuration files')
+    parser.add_argument('--config-file', default=None,
+                        help='Path to a specific config YAML file (overrides --config-dir tier lookup)')
     parser.add_argument('--dataset', default=None,
                         help='Override dataset path from config')
     parser.add_argument('--output-dir', default=None,
                         help='Override output directory from config')
     parser.add_argument('--resume', default=None,
                         help='Resume training from checkpoint')
+    parser.add_argument('--finetune', action='store_true',
+                        help='Load only model weights from checkpoint (not optimizer/scheduler)')
     
     # System configuration
     parser.add_argument('--device', type=str, default='auto',
@@ -110,10 +118,10 @@ def parse_numeric_values(config):
                             pass
 
 
-def load_tier_config(tier: str, config_dir: str) -> dict:
+def load_tier_config(tier: str, config_dir: str, config_file: str = None) -> dict:
     """Load tier-specific configuration"""
-    config_path = os.path.join(config_dir, f"{tier}.yaml")
-    
+    config_path = config_file if config_file else os.path.join(config_dir, f"{tier}.yaml")
+
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
     
@@ -122,29 +130,21 @@ def load_tier_config(tier: str, config_dir: str) -> dict:
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
-    # Load base config if specified
+    # Recursively resolve base configs
     if 'base' in config and config['base']:
-        # Handle relative paths correctly
         base_filename = config['base']
-        if not base_filename.startswith('/'):  # Relative path
-            base_path = os.path.join(config_dir, base_filename)
-        else:  # Absolute path
+        if not base_filename.startswith('/'):
+            base_path = os.path.join(os.path.dirname(os.path.abspath(config_path)), base_filename)
+        else:
             base_path = base_filename
-            
+
         print(f"📋 Loading base configuration from: {base_path}")
-        
-        with open(base_path, 'r') as f:
-            base_config = yaml.safe_load(f)
-        
-        # Merge configs (tier config overrides base)
+        base_config = load_tier_config(tier, config_dir, config_file=base_path)
+
         merged_config = deep_merge_dict(base_config, config)
-        
-        # Parse numeric values
         parse_numeric_values(merged_config)
-        
         return merged_config
-    
-    # Parse numeric values for non-base configs too
+
     parse_numeric_values(config)
     return config
 
@@ -234,17 +234,19 @@ def create_datasets(config: dict, tier: str, dataset_override: str = None):
     # Use override or config dataset path
     dataset_root = dataset_override or dataset_config['root_dir']
     
-    # Training dataset with tier-specific augmentations
-    train_dataset = create_pascal_dataset(
+    dataset_name = dataset_config.get('name', 'pascal_person_parts')
+
+    train_dataset = create_dataset(
+        dataset_name=dataset_name,
         root_dir=dataset_root,
         split='train',
         image_size=dataset_config['image_size'],
         tier=tier,
         multi_scale=training_config.get('multi_scale_training', False)
     )
-    
-    # Validation dataset without augmentations
-    val_dataset = create_pascal_dataset(
+
+    val_dataset = create_dataset(
+        dataset_name=dataset_name,
         root_dir=dataset_root,
         split='val',
         image_size=dataset_config['image_size'],
@@ -372,7 +374,7 @@ def train_epoch(model, train_loader, criterion, optimizer, device, epoch, config
         })
         
         # Log batch metrics
-        if batch_idx % 20 == 0 and not args.no_wandb:
+        if batch_idx % 20 == 0 and WANDB_AVAILABLE and not args.no_wandb:
             log_dict = {
                 'train/batch_loss': loss.item(),
                 'train/batch_miou': miou,
@@ -489,9 +491,9 @@ def save_checkpoint(model, optimizer, scheduler, epoch, best_miou, config, args,
 
 def setup_wandb(config: dict, args):
     """Setup Weights & Biases logging"""
-    if args.no_wandb:
+    if args.no_wandb or not WANDB_AVAILABLE:
         return
-    
+
     logging_config = config.get('logging', {})
     wandb_config = logging_config.get('wandb', {})
     
@@ -568,7 +570,10 @@ def main():
     
     # Load tier configuration
     try:
-        config = load_tier_config(args.tier, args.config_dir)
+        if args.config_file:
+            config = load_tier_config(args.tier, args.config_dir, config_file=args.config_file)
+        else:
+            config = load_tier_config(args.tier, args.config_dir)
     except FileNotFoundError as e:
         print(f"❌ Error: {e}")
         print(f"Available configs in {args.config_dir}: {os.listdir(args.config_dir)}")
@@ -643,14 +648,16 @@ def main():
     best_miou = 0.0
     
     if args.resume:
-        print(f"📚 Resuming training from: {args.resume}")
         checkpoint = torch.load(args.resume, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-        best_miou = checkpoint.get('best_miou', 0.0)
-        print(f"   Resumed from epoch {start_epoch}, best mIoU: {best_miou:.4f}")
+        if args.finetune:
+            print(f"🔧 Fine-tuning from: {args.resume} (weights only)")
+        else:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+            best_miou = checkpoint.get('best_miou', 0.0)
+            print(f"📚 Resumed from epoch {start_epoch}, best mIoU: {best_miou:.4f}")
     
     # Training loop
     epochs = config['training']['epochs']
@@ -691,7 +698,7 @@ def main():
                 print(f"🎯 Target progress: {progress:.1f}% of {target_miou:.3f} mIoU target")
         
         # Log to wandb
-        if not args.no_wandb:
+        if WANDB_AVAILABLE and not args.no_wandb:
             log_dict = {
                 'epoch': epoch,
                 'train/loss': train_loss,
@@ -731,7 +738,7 @@ def main():
             else:
                 print(f"📊 Target progress: {(best_miou/target_miou)*100:.1f}% of {target_miou:.4f} target")
     
-    if not args.no_wandb:
+    if WANDB_AVAILABLE and not args.no_wandb:
         wandb.finish()
 
 

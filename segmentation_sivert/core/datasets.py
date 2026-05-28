@@ -15,6 +15,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Optional, Dict, Any
+from pathlib import Path
 
 
 class BaseSegmentationDataset(Dataset, ABC):
@@ -205,6 +206,64 @@ class PascalPersonPartsDataset(BaseSegmentationDataset):
         return image, mask
 
 
+class COD10KDataset(BaseSegmentationDataset):
+    """COD10K camouflaged object detection dataset (binary: background / camouflaged)"""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('num_classes', 2)
+        super().__init__(*args, **kwargs)
+
+    def _load_image_list(self) -> List[str]:
+        if not os.path.exists(self.img_dir):
+            raise ValueError(f"Image directory not found: {self.img_dir}")
+        images = [f for f in os.listdir(self.img_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
+        if not images:
+            raise ValueError(f"No images found in {self.img_dir}")
+        return sorted(images)
+
+    def _load_image_and_mask(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
+        img_name = self.image_names[idx]
+        mask_name = Path(img_name).stem + '.png'
+
+        img_path = os.path.join(self.img_dir, img_name)
+        image = cv2.imread(img_path)
+        if image is None:
+            raise ValueError(f"Failed to load image: {img_path}")
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        mask_path = os.path.join(self.mask_dir, mask_name)
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            raise ValueError(f"Failed to load mask: {mask_path}")
+
+        return image, mask
+
+    def _get_advanced_augmentations(self):
+        """Camouflage-specific augmentations: preserve texture cues, add field conditions"""
+        return A.Compose([
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.1),
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),
+            A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=10, p=0.5),
+            A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=15, p=0.7),
+            A.Perspective(scale=(0.05, 0.1), p=0.3),
+            A.ElasticTransform(alpha=1, sigma=50, alpha_affine=50, p=0.2),
+            A.GridDistortion(num_steps=5, distort_limit=0.3, p=0.2),
+            A.GaussNoise(var_limit=(10.0, 40.0), p=0.3),
+            A.ISONoise(color_shift=(0.01, 0.04), intensity=(0.1, 0.4), p=0.2),
+            A.MotionBlur(blur_limit=5, p=0.2),
+            A.CLAHE(clip_limit=4.0, tile_grid_size=(8, 8), p=0.5),
+            A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, p=0.2),
+            A.RandomShadow(shadow_roi=(0, 0.5, 1, 1), num_shadows_lower=1, num_shadows_upper=2, p=0.3),
+            A.ImageCompression(quality_lower=70, quality_upper=100, p=0.2),
+        ], additional_targets={'mask': 'mask'})
+
+
+class CAMODataset(COD10KDataset):
+    """CAMO camouflaged object dataset — same format as COD10K."""
+    pass
+
+
 class MultiScaleDataset(torch.utils.data.Dataset):
     """Multi-scale training dataset wrapper"""
     
@@ -246,20 +305,22 @@ def create_dataset(dataset_name: str,
                   multi_scale: bool = False) -> BaseSegmentationDataset:
     """Factory function to create datasets"""
     
-    if dataset_name.lower() == 'pascal_person_parts':
-        base_dataset = PascalPersonPartsDataset(
-            root_dir=root_dir,
-            split=split,
-            image_size=image_size,
-            tier=tier
-        )
-        
-        if multi_scale and split == 'train':
-            return MultiScaleDataset(base_dataset)
-        return base_dataset
-    
-    else:
-        raise ValueError(f"Unknown dataset: {dataset_name}")
+    dataset_map = {
+        'pascal_person_parts': PascalPersonPartsDataset,
+        'cod10k': COD10KDataset,
+        'camo': CAMODataset,
+        'mcs1k': COD10KDataset,
+    }
+
+    cls = dataset_map.get(dataset_name.lower())
+    if cls is None:
+        raise ValueError(f"Unknown dataset: {dataset_name}. Available: {list(dataset_map)}")
+
+    base_dataset = cls(root_dir=root_dir, split=split, image_size=image_size, tier=tier)
+
+    if multi_scale and split == 'train':
+        return MultiScaleDataset(base_dataset)
+    return base_dataset
 
 
 # Export functions for convenience

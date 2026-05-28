@@ -1,0 +1,62 @@
+__include__: [
+  '../../configs/dataset/coco_detection.yml',
+  '../../configs/runtime.yml',
+  '../../configs/dfine/include/dataloader.yml',
+  '../../configs/dfine/include/optimizer.yml',
+  '../../configs/dfine/include/dfine_hgnetv2.yml',
+]
+
+output_dir: ./outputs/soldier_finetune
+
+num_classes: 2
+remap_mscoco_category: False
+
+HGNetv2:
+  name: 'B5'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+HybridEncoder:
+  hidden_dim: 384
+  dim_feedforward: 2048
+
+DFINETransformer:
+  feat_channels: [384, 384, 384]
+  reg_scale: 8
+  num_classes: 2
+
+epochs: 60
+lr_warmup_scheduler:
+  warmup_duration: 100
+
+optimizer:
+  type: AdamW
+  params:
+    - params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.000005
+    - params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+  lr: 0.00005
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+
+train_dataloader:
+  dataset:
+    img_folder: ./datasets/soldier_coco/images/train
+    ann_file: ./datasets/soldier_coco/annotations/instances_train.json
+  total_batch_size: 2
+  collate_fn:
+    stop_epoch: 50
+  shuffle: True
+
+val_dataloader:
+  dataset:
+    img_folder: ./datasets/soldier_coco/images/val
+    ann_file: ./datasets/soldier_coco/annotations/instances_val.json
+  total_batch_size: 2
+
+evaluator:
+  type: CocoEvaluator
+  iou_types: ['bbox']
