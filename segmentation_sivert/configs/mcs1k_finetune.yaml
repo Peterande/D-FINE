@@ -1,0 +1,49 @@
+# MCS1K Fine-tune Config (Phase 3)
+# Fine-tune from CAMO checkpoint on MCS1K (military camouflage soldiers)
+# Run: python train.py --tier advanced --config-file configs/mcs1k_finetune.yaml \
+#        --output-dir outputs/mcs1k_finetune \
+#        --resume outputs/camo_finetune/best_model.pth \
+#        --finetune --no-wandb
+
+base: "advanced.yaml"
+
+dataset:
+  name: "mcs1k"
+  root_dir: "data/mcs1k"
+  num_classes: 2
+  class_names: ["background", "camouflaged"]
+  image_size: 640
+
+training:
+  batch_size: 4
+  epochs: 80
+  learning_rate: 0.00002   # 2.5x lower than CAMO fine-tune
+  weight_decay: 0.0001
+
+  scheduler:
+    type: "cosine_warmup"
+    T_0: 15
+    T_mult: 2
+    eta_min: 0.0000005
+
+  # Backbone already well-adapted — unfreeze quickly
+  unfreeze_epoch: 5
+  backbone_lr_factor: 0.03
+  multi_scale_training: true
+
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.6
+  ce_weight: 0.1
+  boundary_weight: 0.6
+  size_weight: 0.0
+  ignore_index: 255
+
+output:
+  base_dir: "outputs/mcs1k_finetune"
+
+logging:
+  wandb:
+    project: "dfine-camouflage"
+    tags: ["mcs1k", "finetune", "military", "advanced"]

@@ -9,3 +9,5 @@ from .dfine_decoder import DFINETransformer
 from .hybrid_encoder import HybridEncoder
 from .matcher import HungarianMatcher
 from .postprocessor import DFINEPostProcessor
+
+from . import detrpose  # noqa: F401
