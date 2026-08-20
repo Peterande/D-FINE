@@ -57,7 +57,7 @@ def main(args) -> None:
         }
     )
 
-    cfg = YAMLConfig(args.config, **update_dict)
+    cfg = YAMLConfig(args.config, **update_dict, early_stopping_patience=args.early_stopping_patience)
 
     if args.resume or args.tuning:
         if "HGNetv2" in cfg.yaml_cfg:
@@ -99,6 +99,7 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
     )
+    parser.add_argument("--early_stopping_patience", type=int, default=5, help="patience for early stopping")
 
     # priority 1
     parser.add_argument("-u", "--update", nargs="+", help="update yaml config")

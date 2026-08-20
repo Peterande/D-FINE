@@ -15,9 +15,14 @@ import torch
 from ..misc import dist_utils, stats
 from ._solver import BaseSolver
 from .det_engine import evaluate, train_one_epoch
+from ..optim.early_stopping import EarlyStopping
 
 
 class DetSolver(BaseSolver):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.early_stopping = EarlyStopping(patience=cfg.early_stopping_patience)
+
     def fit(self):
         self.train()
         args = self.cfg
@@ -61,6 +66,7 @@ class DetSolver(BaseSolver):
         best_stat_print = best_stat.copy()
         start_time = time.time()
         start_epoch = self.last_epoch + 1
+        self.early_stopping.reset()
         for epoch in range(start_epoch, args.epochs):
             self.train_dataloader.set_epoch(epoch)
             # self.train_dataloader.dataset.set_epoch(epoch)
@@ -116,6 +122,13 @@ class DetSolver(BaseSolver):
                 self.use_wandb,
                 output_dir=self.output_dir,
             )
+
+            # Pass validation loss to EarlyStopping
+            val_loss = test_stats["coco_eval_bbox"][0]
+            self.early_stopping(val_loss)
+            if self.early_stopping.early_stop:
+                print(f"Early stopping at epoch {epoch}")
+                break
 
             # TODO
             for k in test_stats:
