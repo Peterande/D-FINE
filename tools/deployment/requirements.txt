@@ -1,0 +1,4 @@
+onnx
+onnxsim
+nncf
+numpy
