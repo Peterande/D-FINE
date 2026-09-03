@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-03",
+  "baseline_id": "tagtwo-modelsurgery-a0d9b62b",
+  "architecture": {
+    "value": "SharedBackboneDualDecoder",
+    "evidence": "artifact-derived",
+    "source": "tools/model_surgery/shared_arch.py",
+    "source_sha256": "7afcccd1e6a66a7bc55efb3270b4adecac848f5e3d1ee82047d2a0b9ab5adbb9",
+    "modules": ["backbone", "encoder", "det_decoder", "pose_decoder", "seg_head"],
+    "state_tensor_count": 1768,
+    "parameter_count": 96628088,
+    "load_validation": {
+      "missing_keys": 0,
+      "unexpected_keys": 0,
+      "evidence": "measured"
+    }
+  },
+  "artifacts": [
+    {
+      "role": "production_checkpoint",
+      "path": "/home/berna/D-FINE-NEWBRINGER/Traning/best_modelsurgery.pth",
+      "size_bytes": 738769033,
+      "sha256": "a0d9b62b804ece6cd240740036467113a633dd9d2159aa7a7b4fc53044f4c0a7",
+      "evidence": "measured"
+    },
+    {
+      "role": "spaces_checkpoint",
+      "uri": "s3://newbringer/newbringer/dfine-models/model-surgery/dfine_0.48.pth",
+      "size_bytes": 738769033,
+      "sha256": "a0d9b62b804ece6cd240740036467113a633dd9d2159aa7a7b4fc53044f4c0a7",
+      "etag": "39760f080f2b4006ce9fe81739e3f626",
+      "last_modified_utc": "2026-02-23T12:38:58Z",
+      "byte_identical_to_role": "production_checkpoint",
+      "evidence": "measured"
+    },
+    {
+      "role": "reference_onnx",
+      "path": "/home/berna/D-FINE-NEWBRINGER/Traning/singlepass_plugin_all_gather.onnx",
+      "external_data_path": "/home/berna/D-FINE-NEWBRINGER/Traning/singlepass_plugin_all_gather.onnx.data",
+      "size_bytes": 7112673,
+      "external_data_size_bytes": 768945184,
+      "sha256": "e7b6fd7b782743b08c7ba2eb5d2953c222d7e34a4ef3bd5fe18dc8f824c31c71",
+      "external_data_sha256": "f4d39394d0bf2d42a679ece477ee6f6ff6a8515cdb56a553cf03813fc0f88615",
+      "evidence": "measured"
+    },
+    {
+      "role": "reference_tensorrt_engine",
+      "path": "/home/berna/D-FINE-NEWBRINGER/Traning/singlepass_plugin_all_gather.engine",
+      "size_bytes": 389626324,
+      "sha256": "4be9234235ee301e1ea3e5e08cfcd496187ec0e822c95e5892d45aa58c0d4aa7",
+      "tensorrt_version": "10.15.1.29",
+      "bindings_inspected": true,
+      "evidence": "measured"
+    },
+    {
+      "role": "production_tensorrt_engine",
+      "path": "/home/berna/tagtwo-monorepo/src/server/ai-engine/models/engines/dfine_segpose_x_fp16_miou48_NVIDIA_GeForce_RTX_5070_Ti_trt1013035.engine",
+      "size_bytes": 153934476,
+      "sha256": "4cb284b30b2e50c5e4136d2f46b4ce02e2b45d4f60c6b7d434c5750989604591",
+      "tensorrt_version": "10.13.0.35",
+      "bindings_inspected": false,
+      "binding_status": "unknown: installed TensorRT 10.15.1 cannot deserialize a 10.13.0.35 plan",
+      "evidence": "measured"
+    },
+    {
+      "role": "tensorrt_plugin",
+      "path": "/home/berna/tagtwo-monorepo/src/server/ai-engine/models/trt_plugins/libgather_elements_axis1_plugin.so",
+      "size_bytes": 61368,
+      "sha256": "5a06a698c75699ee39f62b38ae74b07096ff7efa0df6725c797bf28efd15e64c",
+      "matches_research_plugin": true,
+      "evidence": "measured"
+    }
+  ],
+  "model_contract": {
+    "inputs": [
+      {"name": "images", "dtype": "float32", "shape": [1, 3, 640, 640]}
+    ],
+    "outputs": [
+      {"name": "det_pred_logits", "dtype": "float32", "shape": [1, 300, 80], "task": "detection_classification"},
+      {"name": "det_pred_boxes", "dtype": "float32", "shape": [1, 300, 4], "task": "detection_localization"},
+      {"name": "pose_pred_logits", "dtype": "float32", "shape": [1, 60, 2], "task": "pose_person_scoring"},
+      {"name": "pose_pred_keypoints", "dtype": "float32", "shape": [1, 60, 34], "task": "coco17_pose"},
+      {"name": "seg_logits", "dtype": "float32", "shape": [1, 7, 640, 640], "task": "semantic_body_part_segmentation"}
+    ],
+    "evidence": "measured from ONNX and TensorRT 10.15 reference engine"
+  },
+  "preprocessing": {
+    "production_rust": {
+      "resize": [640, 640],
+      "aspect_policy": "direct_resize_no_letterbox",
+      "channel_order": "RGB",
+      "scale": "uint8/255",
+      "layout": "NCHW",
+      "mean": [0.485, 0.456, 0.406],
+      "std": [0.229, 0.224, 0.225],
+      "evidence": "artifact-derived",
+      "source": "/home/berna/tagtwo-monorepo/src/server/ai-engine/rust/src/native_tensorrt/prepare.rs"
+    },
+    "research_evaluation": {
+      "resize": [640, 640],
+      "aspect_policy": "direct_resize_no_letterbox",
+      "channel_order": "RGB",
+      "scale": "uint8/255",
+      "layout": "NCHW",
+      "mean": null,
+      "std": null,
+      "evidence": "artifact-derived",
+      "source": "benchmark/harness/eval_coco_det.py",
+      "status": "known contract drift; resolve in issue 20260903-1345"
+    }
+  },
+  "runtime": {
+    "precision": "fp16",
+    "input_size": [640, 640],
+    "confidence_threshold": 0.5,
+    "nms_iou_threshold": 0.6,
+    "crosshair_region_size": 3,
+    "gpu": "NVIDIA GeForce RTX 5070 Ti",
+    "driver": "570.172.08",
+    "evidence": "measured and artifact-derived"
+  },
+  "labels": {
+    "detection": {
+      "count": 80,
+      "map": "COCO contiguous 0..79; person=0",
+      "evidence": "artifact-derived"
+    },
+    "pose": {
+      "count": 17,
+      "map": "COCO-17",
+      "evidence": "artifact-derived"
+    },
+    "segmentation": {
+      "count": 7,
+      "map": {
+        "0": "background",
+        "1": "head",
+        "2": "torso",
+        "3": "upper_arms",
+        "4": "lower_arms",
+        "5": "upper_legs",
+        "6": "lower_legs"
+      },
+      "evidence": "artifact-derived from production runtime",
+      "status": "runtime map; authoritative agreement with training masks must be validated in issue 20260903-1345"
+    }
+  },
+  "metrics": {
+    "detection_coco_ap": {"value": 0.436, "evidence": "measured", "report": "runs/coco_det_val2017.json"},
+    "detection_person_ap": {"value": 0.611, "evidence": "measured", "report": "benchmark/MODEL_BASELINE.md"},
+    "pose_coco_oks_ap": {"value": 0.482, "evidence": "measured", "report": "runs/coco_pose_val2017.json"},
+    "segmentation_validation_miou": {
+      "value": 0.7364,
+      "evidence": "artifact-derived",
+      "source": "/home/berna/D-FINE-NEWBRINGER/outputs/standard/dfine_0.73.pth",
+      "scope": "source segmentation head before model surgery; not yet reproduced end-to-end"
+    }
+  },
+  "unknowns": [
+    "The production TensorRT 10.13 engine bindings were not directly inspected on this host.",
+    "The seven-class training-mask label semantics have not yet been independently proven.",
+    "The 73.64% source-head mIoU has not yet been reproduced through the merged production graph.",
+    "The production engine filename token miou48 is stale or ambiguous metadata, not accepted as a metric."
+  ]
+}

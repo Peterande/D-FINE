@@ -23,7 +23,7 @@ hit pipeline, and promote only a locally measured winner.
 
 ## Program gates
 
-- [ ] Exact baseline artifact, preprocessing, labels, and outputs are frozen.
+- [x] Exact baseline artifact, preprocessing, labels, and outputs are frozen.
 - [ ] One immutable evaluation corpus and metric protocol exist.
 - [ ] Current-model repair and external candidates use identical inputs and gates.
 - [ ] All three heads, hit quality, latency, memory, and deployability are reported.
@@ -31,7 +31,7 @@ hit pipeline, and promote only a locally measured winner.
 
 ## Work items
 
-- [ ] `20260903-1342-ai-production-baseline.md`
+- [x] `20260903-1342-ai-production-baseline.md`
 - [ ] `20260903-1343-ai-evaluation-dataset.md`
 - [ ] `20260903-1344-ai-end-to-end-metrics.md`
 - [ ] `20260903-1345-ai-baseline-contract-drift.md`
@@ -53,4 +53,4 @@ hit pipeline, and promote only a locally measured winner.
 
 ## Next step
 
-Execute `20260903-1342-ai-production-baseline.md`.
+Execute `20260903-1343-ai-evaluation-dataset.md`.
