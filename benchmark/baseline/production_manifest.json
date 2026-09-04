@@ -133,7 +133,7 @@
     },
     "segmentation": {
       "count": 7,
-      "map": {
+      "runtime_map": {
         "0": "background",
         "1": "head",
         "2": "torso",
@@ -142,8 +142,17 @@
         "5": "upper_legs",
         "6": "lower_legs"
       },
+      "training_map_reported_by_owner": {
+        "0": "background",
+        "1": "head",
+        "2": "torso",
+        "3": "arms",
+        "4": "hands",
+        "5": "legs",
+        "6": "feet"
+      },
       "evidence": "artifact-derived from production runtime",
-      "status": "runtime map; authoritative agreement with training masks must be validated in issue 20260903-1345"
+      "status": "known contract drift; owner reports Pascal Person Parts training semantics differ from runtime IDs 3..6; validate in issue 20260903-1345"
     }
   },
   "metrics": {
@@ -159,7 +168,7 @@
   },
   "unknowns": [
     "The production TensorRT 10.13 engine bindings were not directly inspected on this host.",
-    "The seven-class training-mask label semantics have not yet been independently proven.",
+    "The owner-reported seven-class training-mask semantics cannot be independently proven until the missing Pascal Person Parts preparation is recovered.",
     "The 73.64% source-head mIoU has not yet been reproduced through the merged production graph.",
     "The production engine filename token miou48 is stale or ambiguous metadata, not accepted as a metric."
   ]
