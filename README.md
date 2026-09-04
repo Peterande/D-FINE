@@ -548,6 +548,8 @@ python tools/deployment/export_onnx.py --check -c configs/dfine/dfine_hgnetv2_${
 trtexec --onnx="model.onnx" --saveEngine="model.engine" --fp16
 ```
 
+4. Android (LiteRT GPU, community port) — D-FINE-S as `.tflite` on the LiteRT CompiledModel GPU with a Kotlin sample app: [LiteRT-Models › D-FINE-S](https://github.com/john-rocky/LiteRT-Models#d-fine-s) (~450 ms/frame on a Pixel 8a, still-image; IoU 0.99–1.00 vs PyTorch)
+
 </details>
 
 <details>
