@@ -32,10 +32,10 @@ from benchmark.harness.hit import BODY_PARTS, crosshair_xy, decide_hit
 PART_COLORS = {
     1: (60, 220, 255),   # head
     2: (80, 120, 255),   # torso
-    3: (255, 200, 60),   # upper_arms
-    4: (255, 140, 60),   # lower_arms
-    5: (140, 255, 120),  # upper_legs
-    6: (80, 220, 80),    # lower_legs
+    3: (255, 200, 60),   # arms
+    4: (255, 140, 60),   # hands
+    5: (140, 255, 120),  # legs
+    6: (80, 220, 80),    # feet
 }
 
 

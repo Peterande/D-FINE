@@ -22,10 +22,10 @@ BODY_PARTS = {
     0: "background",
     1: "head",
     2: "torso",
-    3: "upper_arms",
-    4: "lower_arms",
-    5: "upper_legs",
-    6: "lower_legs",
+    3: "arms",
+    4: "hands",
+    5: "legs",
+    6: "feet",
 }
 
 DEFAULT_REGION_SIZE = 3

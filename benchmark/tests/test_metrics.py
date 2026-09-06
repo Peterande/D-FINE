@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from benchmark.metrics.core import evaluate_records, protocol_fingerprint
+from benchmark.harness.hit import BODY_PARTS, decide_hit
 from benchmark.tests.fixture_adapter import run
 
 
@@ -19,6 +20,21 @@ class MetricsTest(unittest.TestCase):
     def test_protocol_is_order_independent(self):
         self.assertEqual(protocol_fingerprint({"a": 1, "b": 2}), protocol_fingerprint({"b": 2, "a": 1}))
         self.assertNotEqual(protocol_fingerprint({"a": 1}), protocol_fingerprint({"a": 2}))
+
+    def test_authoritative_body_part_ids(self):
+        self.assertEqual(
+            BODY_PARTS,
+            {0: "background", 1: "head", 2: "torso", 3: "arms", 4: "hands", 5: "legs", 6: "feet"},
+        )
+
+    def test_crosshair_uses_mask_coordinates(self):
+        import numpy as np
+
+        mask = np.zeros((640, 640), dtype=np.uint8)
+        mask[319:322, 319:322] = 4
+        verdict = decide_hit(mask, 640, 640, region_size=3)
+        self.assertTrue(verdict["hit"])
+        self.assertEqual(verdict["body_part"], "hands")
 
 
 if __name__ == "__main__":

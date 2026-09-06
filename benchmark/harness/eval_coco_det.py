@@ -48,6 +48,11 @@ def parse_args():
     ap.add_argument("--seg-dropout", type=float, default=0.1)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--amp", action="store_true")
+    ap.add_argument(
+        "--imagenet-normalize",
+        action="store_true",
+        help="Controlled drift experiment: apply production ImageNet mean/std after ToTensor.",
+    )
     ap.add_argument("--limit", type=int, default=None, help="Evaluate only the first N images.")
     ap.add_argument("--out-json", default=None)
     return ap.parse_args()
@@ -109,7 +114,10 @@ def main():
         # Emit real COCO category ids so COCOeval can match them.
         det_post.remap_mscoco_category = True
 
-    tfm = T.Compose([T.Resize((args.image_size, args.image_size)), T.ToTensor()])
+    transforms = [T.Resize((args.image_size, args.image_size)), T.ToTensor()]
+    if args.imagenet_normalize:
+        transforms.append(T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+    tfm = T.Compose(transforms)
 
     coco = COCO(str(ann_file))
     img_ids = sorted(coco.getImgIds())
