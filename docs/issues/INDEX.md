@@ -11,3 +11,5 @@ Execute in this order unless a document says its dependency can run in parallel:
 7. [Benchmark model candidates](20260903-1347-ai-model-candidate-benchmark.md)
 8. [Promote a verified winner](20260903-1348-ai-model-production-promotion.md)
 9. [Validate anatomical hits](20260903-1349-ai-anatomical-hit-validation.md)
+10. [Map the current real-time vision model landscape](20260904-0700-current-model-landscape.md)
+11. [Train an isolated DETRPose-X adapter with teacher distillation](20260904-0701-isolated-pose-adapter-distillation.md)
