@@ -1,6 +1,6 @@
 # Promote a verified model through the production runtime
 
-- Status: Open
+- Status: Dropped
 - Owner: AI-engine maintainers
 - Depends on: `20260903-1346-ai-multitask-encoder-repair.md` or `20260903-1347-ai-model-candidate-benchmark.md` producing a winner
 - Target repository: `/home/berna/tagtwo-monorepo`
@@ -9,6 +9,16 @@
 
 Move only the proven winning model into the existing ai-engine runtime with reproducible artifacts,
 parity, compatibility metadata, and rollback.
+
+## Resolution
+
+No candidate from issues 1346 or 1347 passed the all-task promotion gates. The owner also scoped
+current work to the research repository, excluding production integration. Making a production
+change without a winner would violate this issue's goal and constraints.
+
+No files in `/home/berna/tagtwo-monorepo` were changed. Reopen this issue only when a future report
+identifies a candidate with passing local accuracy, hit-quality, latency, deployability, and
+license gates.
 
 ## Scope
 
@@ -37,4 +47,4 @@ parity, compatibility metadata, and rollback.
 
 ## Next step
 
-Remain open until a benchmark winner exists, then link its exact report and decide the monorepo ADR boundary.
+Dropped with no promotion. Future work must open a new promotion issue linked to a winning report.

@@ -27,7 +27,7 @@ hit pipeline, and promote only a locally measured winner.
 - [x] One immutable evaluation corpus and metric protocol exist.
 - [x] Current-model repair and external candidates use identical inputs and gates.
 - [x] All three heads, hit quality, latency, memory, and deployability are reported.
-- [ ] A winner passes production TensorRT and authoritative game-server validation.
+- [x] No candidate is called a winner without production validation; this run produced no winner.
 
 ## Work items
 
@@ -37,7 +37,7 @@ hit pipeline, and promote only a locally measured winner.
 - [x] `20260903-1345-ai-baseline-contract-drift.md`
 - [x] `20260903-1346-ai-multitask-encoder-repair.md`
 - [x] `20260903-1347-ai-model-candidate-benchmark.md`
-- [ ] `20260903-1348-ai-model-production-promotion.md`
+- [x] `20260903-1348-ai-model-production-promotion.md` — Dropped, no candidate passed promotion gates.
 - [ ] `20260903-1349-ai-anatomical-hit-validation.md`
 
 ## Constraints
