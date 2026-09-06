@@ -1,6 +1,6 @@
 # Validate anatomical hits and game-server authority
 
-- Status: Open
+- Status: Dropped
 - Owner: AI-engine and game-server maintainers
 - Depends on: `20260903-1345-ai-baseline-contract-drift.md`, `20260903-1348-ai-model-production-promotion.md`
 - Target repository: `/home/berna/tagtwo-monorepo`
@@ -9,6 +9,17 @@
 
 Prove that model outputs produce correct, attributable anatomical hit decisions while game-server
 remains authoritative for player, shot, damage, and game state.
+
+## Resolution
+
+The owner explicitly scoped current work away from Tagtwo production and game-server behavior.
+Issue 1348 also produced no promoted model, so this issue's hard dependency is intentionally
+unmet. Running or changing the authenticated leased-worker shot flow would be unrelated production
+work rather than model-candidate research.
+
+No anatomical-hit or game-server claims are made from the model-only benchmarks. The fixed dataset
+records missing per-shot ground truth, and the candidate report does not use visual agreement as a
+substitute. Open a new production validation issue if a future model passes promotion gates.
 
 ## Scope
 
@@ -37,4 +48,4 @@ remains authoritative for player, shot, damage, and game state.
 
 ## Next step
 
-Define one deterministic fixture for each hit-decision path using the corrected class and coordinate contracts.
+Dropped as out of current scope; no production candidate exists to validate.
