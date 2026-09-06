@@ -36,7 +36,7 @@ hit pipeline, and promote only a locally measured winner.
 - [x] `20260903-1344-ai-end-to-end-metrics.md`
 - [x] `20260903-1345-ai-baseline-contract-drift.md`
 - [x] `20260903-1346-ai-multitask-encoder-repair.md`
-- [ ] `20260903-1347-ai-model-candidate-benchmark.md`
+- [x] `20260903-1347-ai-model-candidate-benchmark.md`
 - [ ] `20260903-1348-ai-model-production-promotion.md`
 - [ ] `20260903-1349-ai-anatomical-hit-validation.md`
 
