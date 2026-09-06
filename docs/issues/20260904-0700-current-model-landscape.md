@@ -1,6 +1,6 @@
 # Map the current real-time vision model landscape
 
-- Status: Open
+- Status: Done
 - Owner: Berna / AI and vision research
 - Depends on: `20260903-1342-ai-production-baseline.md`, `20260903-1344-ai-end-to-end-metrics.md`
 - Repository scope: research checkout only
@@ -33,12 +33,12 @@ segmentation, and genuine multitask models exist; how each would fit the current
 
 ## Acceptance criteria
 
-- [ ] Candidate registry covers at least five credible models per task where five exist.
-- [ ] Every claim links to a primary paper or official implementation and pinned revision.
-- [ ] Published and locally reproduced measurements are stored separately.
-- [ ] Every candidate has an explicit `test`, `retrain`, `monitor`, or `reject` verdict.
-- [ ] A ranked shortlist identifies the cheapest decisive local experiment for each task.
-- [ ] Final report explains both likely upgrades and evidence-based rejection reasons.
+- [x] Candidate registry covers at least five credible models per task where five exist.
+- [x] Every claim links to a primary paper or official implementation and pinned revision.
+- [x] Published and locally reproduced measurements are stored separately.
+- [x] Every candidate has an explicit `test`, `retrain`, `monitor`, or `reject` verdict.
+- [x] A ranked shortlist identifies the cheapest decisive local experiment for each task.
+- [x] Final report explains both likely upgrades and evidence-based rejection reasons.
 
 ## Outputs
 
@@ -54,5 +54,15 @@ segmentation, and genuine multitask models exist; how each would fit the current
 
 ## Next step
 
-Expand the existing seven-candidate registry into task-specific longlists, beginning with human
-pose because it has the largest measured quality gap.
+Execute `20260904-0701-isolated-pose-adapter-distillation.md`. DETRPose-X is the first experiment;
+RTMO-L is the independent pose-family control after the adapter smoke test.
+
+## Completion evidence
+
+- `benchmark/landscape/registry.json`: 25 candidates across four categories with primary sources,
+  pinned repository revisions where code exists, licenses, separate paper/local evidence, fit, and
+  verdict.
+- `benchmark/landscape/REPORT.md`: ranked tests plus explicit explanations of incompatible and
+  rejected models.
+- `benchmark/landscape/validate_registry.py`: schema, minimum coverage, source, evidence separation,
+  uniqueness, and verdict validation.
