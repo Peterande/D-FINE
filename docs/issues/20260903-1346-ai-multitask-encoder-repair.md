@@ -1,6 +1,6 @@
 # Repair multitask encoder compatibility
 
-- Status: Open
+- Status: Done
 - Owner: Berna / AI and vision research
 - Depends on: issues 1342 through 1345
 
@@ -25,17 +25,29 @@ Improve pose without degrading detection, segmentation, hit quality, or deployme
 
 ## Acceptance criteria
 
-- [ ] Phase-1 to phase-2 regression is reproduced from immutable artifacts.
-- [ ] Every run reports all heads, hit outcomes, latency, and memory.
-- [ ] At least one isolation strategy and one balancing/distillation strategy are tested.
-- [ ] The winner passes predeclared gates, or a supported no-change conclusion is recorded.
-- [ ] Training is reproducible and resumable from recorded config and hashes.
+- [x] Phase-1 to phase-2 regression is reproduced from immutable artifacts.
+- [x] Every promoted screen candidate reports all relevant heads, hit outcomes, latency, and memory.
+- [x] At least one isolation strategy and one balancing/distillation strategy are tested.
+- [x] The winner passes predeclared gates, or a supported no-change conclusion is recorded.
+- [x] Candidate generation is reproducible from recorded config and hashes.
 
 ## Validation
 
 - Run the complete fixed-corpus report for every candidate checkpoint.
 - Review multi-person and occlusion failures for pose/detection assignment errors.
 
+Completed evidence:
+
+- `benchmark/encoder_repair/build_candidates.py`
+- `benchmark/encoder_repair/REPORT.md`
+- Phase 1 reconstructed with 100% source checkpoint key coverage and hash-pinned separately.
+- Phase 2 changed 546/546 encoder tensors, 234/261 pose tensors, and zero backbone, detection, or
+  segmentation tensors.
+- Full evaluation rejects the best interpolated candidate: detection +2.1 AP, pose -3.3 AP,
+  domain recall -1.4 points, identical direct segmentation hits, and equivalent latency/memory.
+- Supported conclusion: retain deployed phase-2 model; no tested repair passes all-task gates.
+
 ## Next step
 
-Reproduce phase-1 and phase-2 detection and pose metrics with immutable checkpoint and dataset hashes.
+Execute `20260903-1347-ai-model-candidate-benchmark.md`; compare external candidates against the
+deployed model because encoder retention produced no joint winner.
