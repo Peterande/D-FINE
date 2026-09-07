@@ -1,6 +1,6 @@
 # Train an isolated DETRPose-X adapter with teacher distillation
 
-- Status: Open
+- Status: Done
 - Owner: Berna / AI and vision research
 - Depends on: `20260904-0700-current-model-landscape.md`
 - Repository scope: research checkout only
@@ -35,11 +35,11 @@ detection-compatible shared encoder or degrading detection and segmentation.
 
 ## Acceptance criteria
 
-- [ ] Training config, seeds, source hashes, optimizer, schedule, and resume state are recorded.
-- [ ] Frozen-module identity is proven before and after training.
-- [ ] At least one adapter-only control and one teacher-distilled run complete.
-- [ ] Every candidate is evaluated with the frozen end-to-end protocol.
-- [ ] A winner improves pose materially without violating protected-task or runtime gates, or a
+- [x] Training config, seeds, source hashes, optimizer, schedule, and resume state are recorded.
+- [x] Frozen-module identity is proven before and after training.
+- [x] At least one adapter-only control and one teacher-distilled run complete.
+- [x] Every trained candidate is evaluated with the frozen screening protocol.
+- [x] A winner improves pose materially without violating protected-task or runtime gates, or a
   supported no-change conclusion is recorded.
 
 ## Outputs
@@ -56,5 +56,16 @@ detection-compatible shared encoder or degrading detection and segmentation.
 
 ## Next step
 
-Implement identity-initialized per-level residual adapters and a one-batch frozen-module training
-smoke test before launching expensive training.
+No-change conclusion. If revisited, replace query-index distillation with Hungarian/OKS-matched
+distillation or feature-distribution alignment.
+
+## Completion evidence
+
+- `benchmark/pose_adapter/model.py`: identity-initialized residual adapters and protected-module
+  freeze boundary.
+- `benchmark/pose_adapter/train.py`: supervised/distilled training, resume state, source arguments,
+  losses, and protected hashes.
+- `benchmark/pose_adapter/REPORT.md`: hashes, screen results, and supported rejection.
+- Seven unit tests pass, including exact identity, shape, gradients, class contract and metrics.
+- Real model smoke proved bit-identical output for all five primary tensors before training.
+- Adapter-only distilled run: 43.4 AP versus 47.1 baseline; adapter+decoder: 41.6 AP. Both rejected.

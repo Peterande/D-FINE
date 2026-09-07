@@ -39,6 +39,8 @@ def parse_args():
     ap.add_argument("--det-config", required=True)
     ap.add_argument("--pose-config", required=True)
     ap.add_argument("--merged-ckpt", required=True)
+    ap.add_argument("--pose-adapter", type=Path, default=None,
+                    help="Optional isolated pose-adapter training checkpoint.")
     ap.add_argument("--coco-root", required=True)
     ap.add_argument("--split", default="val2017")
     ap.add_argument("--image-size", type=int, default=640)
@@ -78,6 +80,14 @@ def main():
         seg_dropout=args.seg_dropout,
         image_size=args.image_size,
     )
+    if args.pose_adapter is not None:
+        from benchmark.pose_adapter.model import PoseAdapterModel
+
+        adapted = PoseAdapterModel(model, [384, 384, 384])
+        adapter_ckpt = torch.load(args.pose_adapter, map_location="cpu", weights_only=False)
+        adapted.pose_adapters.load_state_dict(adapter_ckpt["pose_adapters"], strict=True)
+        adapted.pose_decoder.load_state_dict(adapter_ckpt["pose_decoder"], strict=True)
+        model = adapted
     model = model.to(device).eval()
 
     pose_post = DETRPosePostProcessor(
