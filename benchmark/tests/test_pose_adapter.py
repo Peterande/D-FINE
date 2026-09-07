@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 from benchmark.pose_adapter.model import ResidualFeatureAdapters
+from benchmark.pose_adapter.matching import matched_distillation_loss
 
 
 class PoseAdapterTest(unittest.TestCase):
@@ -30,6 +31,17 @@ class PoseAdapterTest(unittest.TestCase):
         adapters = ResidualFeatureAdapters([4, 8])
         with self.assertRaises(ValueError):
             adapters([torch.randn(1, 4, 2, 2)])
+
+    def test_matching_recovers_query_permutation(self):
+        teacher = {
+            "pred_keypoints": torch.tensor([[[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]]),
+            "pred_logits": torch.tensor([[[1.0], [2.0], [3.0]]]),
+        }
+        permutation = torch.tensor([2, 0, 1])
+        student = {key: value[:, permutation].clone().requires_grad_(True) for key, value in teacher.items()}
+        loss = matched_distillation_loss(student, teacher)
+        self.assertEqual(float(loss.detach()), 0.0)
+        loss.backward()
 
 
 if __name__ == "__main__":

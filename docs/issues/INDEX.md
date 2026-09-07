@@ -13,3 +13,4 @@ Execute in this order unless a document says its dependency can run in parallel:
 9. [Validate anatomical hits](20260903-1349-ai-anatomical-hit-validation.md)
 10. [Map the current real-time vision model landscape](20260904-0700-current-model-landscape.md)
 11. [Train an isolated DETRPose-X adapter with teacher distillation](20260904-0701-isolated-pose-adapter-distillation.md)
+12. [Match pose queries before teacher distillation](20260907-0900-matched-pose-distillation.md)

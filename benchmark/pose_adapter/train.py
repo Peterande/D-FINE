@@ -40,6 +40,7 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--distill-weight", type=float, default=0.0)
+    parser.add_argument("--distill-matching", choices=["query_index", "hungarian_l1"], default="query_index")
     parser.add_argument("--train-pose-decoder", action="store_true")
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--resume", type=Path)
@@ -84,7 +85,11 @@ def main() -> int:
         student_out = student.pose_forward(images, targets)
         supervised = sum(criterion(student_out, targets).values())
         with torch.no_grad(): teacher_out = teacher(images, targets)
-        distill = torch.nn.functional.smooth_l1_loss(student_out["pred_logits"], teacher_out["pred_logits"]) + torch.nn.functional.smooth_l1_loss(student_out["pred_keypoints"], teacher_out["pred_keypoints"])
+        if args.distill_matching == "hungarian_l1":
+            from benchmark.pose_adapter.matching import matched_distillation_loss
+            distill = matched_distillation_loss(student_out, teacher_out)
+        else:
+            distill = torch.nn.functional.smooth_l1_loss(student_out["pred_logits"], teacher_out["pred_logits"]) + torch.nn.functional.smooth_l1_loss(student_out["pred_keypoints"], teacher_out["pred_keypoints"])
         loss = supervised + args.distill_weight * distill
         optimizer.zero_grad(set_to_none=True); loss.backward(); torch.nn.utils.clip_grad_norm_(parameters, 1.0); optimizer.step()
         losses.append({"step": step + 1, "total": float(loss.detach()), "supervised": float(supervised.detach()), "distill": float(distill.detach())})
