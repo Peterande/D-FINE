@@ -373,6 +373,7 @@ def main():
     ap.add_argument("--det-config", required=True)
     ap.add_argument("--pose-config", required=True)
     ap.add_argument("--merged-ckpt", required=True)
+    ap.add_argument("--pose-adapter", type=Path, default=None)
     ap.add_argument("--input", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--use-ffmpeg", action="store_true",
@@ -435,6 +436,14 @@ def main():
         seg_dropout=float(args.seg_dropout),
         image_size=int(args.image_size),
     )
+    if args.pose_adapter is not None:
+        from benchmark.pose_adapter.model import PoseAdapterModel
+
+        adapter_checkpoint = torch.load(args.pose_adapter, map_location="cpu", weights_only=False)
+        adapted = PoseAdapterModel(model, [384, 384, 384])
+        adapted.pose_adapters.load_state_dict(adapter_checkpoint["pose_adapters"], strict=True)
+        adapted.pose_decoder.load_state_dict(adapter_checkpoint["pose_decoder"], strict=True)
+        model = adapted
 
     device = torch.device(args.device if (args.device == "cpu" or torch.cuda.is_available()) else "cpu")
     model = model.to(device).eval()
