@@ -9,3 +9,6 @@ from .dfine_decoder import DFINETransformer
 from .hybrid_encoder import HybridEncoder
 from .matcher import HungarianMatcher
 from .postprocessor import DFINEPostProcessor
+
+# Optional DETRPose-style decoder integration (registers DETRPoseTransformer into workspace)
+from . import detrpose  # noqa: F401

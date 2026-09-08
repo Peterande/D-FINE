@@ -457,7 +457,20 @@ class HybridEncoder(nn.Module):
                         w, h, self.hidden_dim, self.pe_temperature
                     ).to(src_flatten.device)
                 else:
-                    pos_embed = getattr(self, f"pos_embed{enc_ind}", None).to(src_flatten.device)
+                    # In eval, we may have a cached pos_embed built for eval_spatial_size.
+                    # If the current feature map size differs (e.g. evaluating at a different image size),
+                    # the cached embedding will have a different token count and will crash in attention.
+                    pos_embed = getattr(self, f"pos_embed{enc_ind}", None)
+                    if pos_embed is None:
+                        pos_embed = self.build_2d_sincos_position_embedding(
+                            w, h, self.hidden_dim, self.pe_temperature
+                        )
+                    # pos_embed shape: [1, H*W, C]
+                    if pos_embed.shape[1] != src_flatten.shape[1]:
+                        pos_embed = self.build_2d_sincos_position_embedding(
+                            w, h, self.hidden_dim, self.pe_temperature
+                        )
+                    pos_embed = pos_embed.to(src_flatten.device)
 
                 memory: torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
                 proj_feats[enc_ind] = (
