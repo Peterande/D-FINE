@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-04",
+  "baseline": "tagtwo-modelsurgery-a0d9b62b",
+  "candidates": [
+    {
+      "id": "deimv2-x",
+      "official_source": "https://github.com/Intellindust-AI-Lab/DEIMv2",
+      "revision": "1d2ca42171570c713e78fc6a766ec5104b7f4724",
+      "task": "object_detection",
+      "published": {"dataset": "COCO val2017", "ap": 0.578, "parameters_m": 50.3, "latency_ms_t4_trt_fp16": 13.75},
+      "local_result": null,
+      "license": "DEIMv2 custom license; non-commercial only without separate commercial license",
+      "compatibility": "DINOv3/STA backbone and DEIM decoder do not accept existing pose/seg heads without retraining",
+      "decision": "reject",
+      "reason": "lower published detection AP than stock obj2coco D-FINE-X, no multitask compatibility proof, and commercial deployment blocked by default license"
+    },
+    {
+      "id": "edgecrafter-ecdet-x-o365",
+      "official_source": "https://github.com/Intellindust-AI-Lab/EdgeCrafter",
+      "revision": "f611c731cf5e22ca2d040f1785b35c131ca4cb16",
+      "task": "object_detection",
+      "published": {"dataset": "COCO val2017", "ap": 0.599, "parameters_m": 49, "latency_ms_t4_trt_fp16": 12.70},
+      "local_result": null,
+      "license": "EdgeCrafter custom license; non-commercial only without separate commercial license",
+      "compatibility": "separate task model; replacing shared backbone invalidates current pose and semantic body-part heads",
+      "decision": "monitor",
+      "reason": "only 0.6 AP above stock D-FINE-X in the published protocol, requires full multitask retraining, and cannot be commercially promoted under default terms"
+    },
+    {
+      "id": "edgecrafter-ecpose-x-o365",
+      "official_source": "https://github.com/Intellindust-AI-Lab/EdgeCrafter",
+      "revision": "f611c731cf5e22ca2d040f1785b35c131ca4cb16",
+      "task": "human_pose",
+      "published": {"dataset": "COCO val2017", "oks_ap": 0.759, "parameters_m": 51, "latency_ms_t4_trt_fp16": 14.31},
+      "local_result": null,
+      "license": "EdgeCrafter custom license; non-commercial only without separate commercial license",
+      "compatibility": "standalone pose network, not a drop-in decoder for the existing HybridEncoder",
+      "decision": "monitor",
+      "reason": "strong paper result but no shared-feature integration path and default license blocks commercial promotion"
+    },
+    {
+      "id": "edgecrafter-ecseg-x-o365",
+      "official_source": "https://github.com/Intellindust-AI-Lab/EdgeCrafter",
+      "revision": "f611c731cf5e22ca2d040f1785b35c131ca4cb16",
+      "task": "instance_segmentation",
+      "published": {"dataset": "COCO val2017", "mask_ap": 0.498, "parameters_m": 50, "latency_ms_t4_trt_fp16": 14.96},
+      "local_result": null,
+      "license": "EdgeCrafter custom license; non-commercial only without separate commercial license",
+      "compatibility": "wrong output task: instance masks are not seven-class semantic body-part parsing",
+      "decision": "reject",
+      "reason": "not metrically or semantically comparable without new body-part training"
+    },
+    {
+      "id": "detrpose-x-official",
+      "official_source": "https://github.com/SebastianJanampa/DETRPose",
+      "revision": "4e4a842aaa5afb3d13b40224f070bc3e8e8503f6",
+      "local_vendor_revision": "94298e0ae6d3e69755c36da924cd1c457f561c0b",
+      "task": "human_pose",
+      "published": {"dataset": "COCO val2017", "oks_ap": 0.733},
+      "local_result": {"standalone_oks_ap": 0.7441, "direct_decoder_transplant_oks_ap": 0.0051, "checkpoint_sha256": "e4dbb64142811ac1775f4695ee53c947a53a9935942b8d07e437d5f0148f1bc6"},
+      "license": "Apache-2.0",
+      "compatibility": "decoder shapes match, encoder feature semantics do not",
+      "decision": "retrain",
+      "reason": "local standalone result is excellent, but direct transplantation collapses to 0.5 AP; any use requires isolated features or retraining"
+    },
+    {
+      "id": "sapiens-0.3b-seg",
+      "official_source": "https://github.com/facebookresearch/sapiens",
+      "revision": "unrecorded for local torchscript artifact",
+      "task": "semantic_human_parsing_teacher",
+      "published": null,
+      "local_result": {"frames": 30, "agreement_miou_body_parts": 0.1032, "identical_crosshair_verdict_rate": 0.5667, "latency_ms": 227.03, "checkpoint_sha256": "735a9a8d63fe8f3f6a4ca3d787de07e69b1f9708ad550e09bb33c9854b7eafbc"},
+      "license": "must be re-audited before any redistribution or product use",
+      "compatibility": "28-to-7 remap is heuristic and model is about 6.7x slower than baseline on the local comparison",
+      "decision": "monitor",
+      "reason": "useful only as a diagnostic teacher; no ground-truth evidence or real-time deployment case"
+    },
+    {
+      "id": "schp-pascal-person-part",
+      "official_source": "https://github.com/GoGoDuck912/Self-Correction-Human-Parsing",
+      "revision": "eb84c432cc697f494d99662a05f2335eb2f26095",
+      "task": "semantic_human_parsing",
+      "published": {"dataset": "Pascal Person Part", "miou": 0.7146},
+      "local_result": null,
+      "license": "MIT for repository code; dataset terms separate",
+      "compatibility": "standalone ResNet-101 parser; published class semantics are upper/lower limbs rather than project arms/hands/legs/feet",
+      "decision": "reject",
+      "reason": "published mIoU is below the source head's recorded 73.64%, label contract differs, and it adds a second full model"
+    }
+  ]
+}

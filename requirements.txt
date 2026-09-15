@@ -7,3 +7,5 @@ scipy
 calflops
 transformers
 loguru
+tqdm
+timm

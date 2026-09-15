@@ -1,0 +1,79 @@
+# Base Configuration for D-FINE Pose Estimation (COCO-17)
+# Common settings shared across all tiers
+
+# Dataset Configuration
+dataset:
+  name: "coco_keypoints"
+  root_dir: "datasets/coco"  # expects train2017/ val2017/ annotations/person_keypoints_*.json
+  num_keypoints: 17
+  image_size: 640
+
+# DFINE Model Configuration
+dfine:
+  # IMPORTANT: config must enable DFINETransformer.num_keypoints=17
+  # DETRPose-style decoder (pose-only transformer) integrated in this repo:
+  # - decoder: DETRPoseTransformer
+  # - outputs: pred_logits + pred_keypoints [B,Q,2K]
+  config_path: "base_dfine/dfine_hgnetv2_l_obj365_detrpose.yml"
+  checkpoint_path: "base_dfine/dfine_l_obj365.pth"
+  # Keep v1 runs compatible (paper-like config uses a separate base_dfine yaml).
+  num_classes: 80
+
+# Training Configuration
+training:
+  batch_size: 8
+  epochs: 50
+  learning_rate: 0.00005
+  weight_decay: 0.0001  # 1e-4 in decimal
+  
+  # Optimization settings
+  gradient_clipping: 1.0
+  freeze_detection: false
+
+# Loss Configuration
+# (uses DFINECriterion weights; see core/losses.py)
+loss: {}
+
+# System Configuration
+system:
+  num_workers: 4
+  pin_memory: true
+  device: "auto"  # auto, cuda, cpu
+
+# Output Configuration
+output:
+  base_dir: "outputs/pose"
+  save_every: 10
+  save_best: true
+
+# Logging Configuration
+logging:
+  wandb:
+    project: "dfine-pose"
+    entity: null
+    tags: []
+  
+  tensorboard: false
+  
+  log_every: 20
+  print_every: 1
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "oks"
+  
+  save_predictions: false
+  visualize_samples: 5
+
+# TensorRT Configuration
+tensorrt:
+  fp16: true
+  int8: false
+  workspace_gb: 4
+  max_batch_size: 1
+  
+  calibration:
+    mode: "mixed"  # pascal, coco, mixed
+    max_images: 500
+    pascal_ratio: 0.7

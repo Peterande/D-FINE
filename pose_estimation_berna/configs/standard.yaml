@@ -1,0 +1,168 @@
+# Standard Configuration for D-FINE Pose (COCO-17)
+# Balanced performance / memory
+
+# Inherit from base configuration
+base: "base.yaml"
+
+# Model Tier
+tier: "standard"
+
+# Use X backbone (B5) to match segmentation model for model surgery.
+# Override base.yaml L defaults to X equivalents.
+dfine:
+  config_path: "base_dfine/dfine_hgnetv2_x_obj2coco_detrpose_paper.yml"
+  checkpoint_path: "base_dfine/dfine_x_obj2coco.pth"
+
+# Pose config mostly relies on the DFINETransformer internal keypoint head.
+model: {}
+
+# Training Configuration (overrides base)
+training:
+  # 16 @ 640px OOMs easily on 16GB cards with HGNetv2-B5. Use grad accumulation to keep effective batch.
+  batch_size: 4         #       ->              6/8
+  grad_accum_steps: 4   # effective batch = 16, 3/2
+  amp: true
+  epochs: 100
+  learning_rate: 0.00005
+  weight_decay: 0.0001  # 1e-4 in decimal
+  
+  # Scheduler settings
+  scheduler:
+    type: "cosine_warmup"
+    T_0: 15
+    T_mult: 2
+    eta_min: 0.000001  # 1e-6 in decimal
+  
+  # Optimization settings
+  gradient_clipping: 1.0
+  freeze_detection: false
+  # Pose warmup: train pose heads only for a few epochs, then unfreeze everything.
+  # This usually helps stability when adapting from a detection-pretrained checkpoint.
+  pose_only_epochs: 5
+
+# Loss Configuration
+loss: {}
+
+# Performance Targets
+targets:
+  accuracy:
+    oks: 0.55
+  
+  speed:
+    min_fps: 30  # Target 30+ FPS on RTX 3080
+    max_latency_ms: 35
+  
+  memory:
+    max_gpu_mb: 4000  # Max 4GB GPU memory
+    max_model_mb: 100  # Max 100MB model size
+
+# System Configuration (overrides base if needed)
+system:
+  # Stability for long training runs (avoid rare native segfaults in dataloader/native libs)
+  start_method: "spawn"
+  num_workers: 2
+  pin_memory: true
+  device: "auto"
+  # Speed knobs (safe defaults)
+  cudnn_benchmark: true         # faster for fixed input sizes (e.g., 640x640)
+  persistent_workers: true      # keeps dataloader workers alive between epochs
+  prefetch_factor: 2            # batches prefetched per worker
+  channels_last: true           # often faster on CUDA conv backbones
+
+# Output Configuration
+output:
+  base_dir: "outputs/standard"
+  # Save a full checkpoint every epoch so we can later pick best-by-AP even if
+  # in-training COCOeval is disabled or the process crashes.
+  # NOTE: this can consume a lot of disk space (checkpoints are large).
+  save_every: 1
+  save_best: true
+
+# Logging Configuration
+logging:
+  wandb:
+    project: "dfine-pose"
+    entity: null
+    tags: ["standard", "pose", "coco17"]
+  
+  tensorboard: false
+  log_every: 20
+  print_every: 1
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "oks"
+  # Speed knobs: running full val + COCOeval every epoch can be expensive.
+  # You still get OKS every val; COCO-AP(kpt) runs only when enabled and due.
+  val_every: 1
+  coco_eval_every: 5
+  
+  save_predictions: false
+  visualize_samples: 5
+
+# TensorRT Configuration for deployment
+tensorrt:
+  fp16: true
+  int8: true
+  workspace_gb: 4
+  max_batch_size: 1
+  
+  # Standard tier optimization
+  optimization_level: 3
+  enable_dla: false
+  
+  # Input configuration
+  input_shape: [1, 3, 640, 640]
+  
+  calibration:
+    mode: "mixed"  # pascal, coco, mixed
+    max_images: 500
+    pascal_ratio: 0.7
+
+# Platform Configuration
+platform:
+  general_purpose:
+    rtx_3070: true
+    rtx_3080: true
+    rtx_4070: true
+    gtx_1080: true
+  
+  server:
+    single_gpu: true
+    multi_gpu: false
+  
+  workstation:
+    content_creation: true
+    development: true
+
+# Features enabled for standard tier
+features:
+  # Performance features
+  performance:
+    multi_scale_training: true
+    progressive_unfreezing: true
+    gradient_clipping: true
+    
+  # Quality features
+  quality:
+    weighted_feature_fusion: true
+    global_context_pooling: true
+    batch_normalization: true
+    
+  # Analysis features
+  analysis:
+    detailed_metrics: true
+    class_wise_evaluation: true
+
+# Comments for clarity
+comments: |
+  Standard tier configuration provides:
+  - Balanced accuracy and speed performance
+  - Good for general purpose applications
+  - Target: ~70% mIoU at 30+ FPS
+  - Memory efficient: <4GB GPU, <100MB model
+  - Multi-scale training for robustness
+  - Progressive backbone unfreezing
+  - Suitable for most deployment scenarios
+  - Integrates with unified training script

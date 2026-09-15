@@ -1,0 +1,94 @@
+# Base Configuration for DFINE Segmentation
+# Common settings shared across all model tiers
+
+# Dataset Configuration
+dataset:
+  name: "pascal_person_parts"
+  root_dir: "datasets/pascal_person_parts"
+  num_classes: 7
+  class_names: ["background", "head", "torso", "arms", "hands", "legs", "feet"]
+  image_size: 640
+
+# DFINE Model Configuration
+dfine:
+  config_path: "base_dfine/dfine_hgnetv2_x_obj2coco.yml"
+  checkpoint_path: "base_dfine/dfine_x_obj2coco.pth"
+
+# Training Configuration
+training:
+  batch_size: 8
+  epochs: 250
+  learning_rate: 0.0005  # 5e-4 in decimal
+  weight_decay: 0.0001  # 1e-4 in decimal
+  
+  # Scheduler settings
+  scheduler:
+    type: "cosine_warmup"
+    T_0: 15
+    T_mult: 2
+    eta_min: 0.000001  # 1e-6 in decimal
+  
+  # Optimization settings
+  gradient_clipping: 1.0
+  freeze_detection: true
+  unfreeze_epoch: 40
+  
+  # Augmentation settings
+  multi_scale_training: false
+  augmentation_strength: "medium"
+
+# Loss Configuration
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  dice_weight: 0.4
+  ce_weight: 0.2
+  boundary_weight: 0.3
+  ignore_index: 255
+
+# System Configuration
+system:
+  num_workers: 4
+  pin_memory: true
+  device: "auto"  # auto, cuda, cpu
+
+# Output Configuration
+output:
+  base_dir: "outputs"
+  save_every: 10
+  save_best: true
+
+# Logging Configuration
+logging:
+  wandb:
+    project: "dfine-segmentation"
+    entity: null
+    tags: []
+  
+  tensorboard: false
+  
+  log_every: 20
+  print_every: 1
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "miou"
+    - "pixel_accuracy"
+    - "class_iou"
+    - "class_accuracy"
+  
+  save_predictions: false
+  visualize_samples: 5
+
+# TensorRT Configuration
+tensorrt:
+  fp16: true
+  int8: false
+  workspace_gb: 4
+  max_batch_size: 1
+  
+  calibration:
+    mode: "mixed"  # pascal, coco, mixed
+    max_images: 500
+    pascal_ratio: 0.7

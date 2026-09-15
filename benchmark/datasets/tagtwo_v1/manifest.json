@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "dataset_id": "tagtwo_v1",
+  "ordering": "lexicographic sample_id",
+  "immutable_media_policy": "media remains outside Git; source SHA-256 plus zero-based frame index identifies a sample",
+  "label_maps": {
+    "body_parts": {"0": "background", "1": "head", "2": "torso", "3": "arms", "4": "hands", "5": "legs", "6": "feet"},
+    "body_parts_status": "owner-reported training map; production runtime drift for IDs 3..6 remains issue 1345",
+    "pose": "COCO-17",
+    "detection": "COCO contiguous 0..79 with person=0"
+  },
+  "sources": [
+    {
+      "id": "david",
+      "path": "/home/berna/D-FINE-NEWBRINGER/datasets/David.mp4",
+      "sha256": "cc389d40b92496e63397bcd18dfeeb7f2fc5688ed2978a50f8c70299b4e8f54e",
+      "width": 360,
+      "height": 640,
+      "fps": "30/1",
+      "frame_count": 563,
+      "split": "product_acceptance",
+      "source_group": "office_david_sequence"
+    },
+    {
+      "id": "sogo",
+      "path": "/home/berna/D-FINE-NEWBRINGER/datasets/SogO.mp4",
+      "sha256": "8d087faa879788725416201d7a01466534918c932b962ca6f30b6077c828388b",
+      "width": 480,
+      "height": 854,
+      "fps": "59/1",
+      "frame_count": 706,
+      "split": "product_acceptance",
+      "source_group": "office_sogo_sequence"
+    }
+  ],
+  "public_validation": [
+    {
+      "id": "coco_detection_val2017",
+      "split": "validation",
+      "image_count": 5000,
+      "annotation_path": "/home/berna/D-FINE-NEWBRINGER/datasets/coco/annotations/instances_val2017.json",
+      "annotation_sha256": "e8c7f7908f1d7278341fae127d0da654f102f11bd7b21d8aeefa635b8c810b6f"
+    },
+    {
+      "id": "coco_pose_val2017",
+      "split": "validation",
+      "image_count": 5000,
+      "annotation_path": "/home/berna/D-FINE-NEWBRINGER/datasets/coco/annotations/person_keypoints_val2017.json",
+      "annotation_sha256": "788e2dae83c86bd547be7fab269d6399df5671063d29a61360cdb2cc370d2b14"
+    },
+    {
+      "id": "soldier_domain_val",
+      "split": "validation",
+      "image_count": 116,
+      "annotation_path": "/home/berna/D-FINE-NEWBRINGER/datasets/soldier_coco/annotations/instances_val.json",
+      "annotation_sha256": "ebc7e352136fca6cacefb253c021be5186f0b54023a378edbb16fe8f6496b1e2"
+    },
+    {
+      "id": "pascal_person_parts_v1",
+      "split": "validation",
+      "image_count": 1829,
+      "dataset_path": "/home/berna/D-FINE-NEWBRINGER-benchmark/.cache/datasets/pascal_person_parts_v1",
+      "provenance_path": "/home/berna/D-FINE-NEWBRINGER-benchmark/.cache/datasets/pascal_person_parts_v1/provenance.json",
+      "provenance_sha256": "3cefa42701c31153d863735f597528794af5d6a3be535383312fefdd0f2b4df2",
+      "train_order_sha256": "788096af1db7aba77bfd542fb0085332be08e6389c4191194d3db1d8276d0cfb",
+      "validation_order_sha256": "576bc28ba2a79fd259876de8cd1bf21dd603429324f6afd492b1f4f6491ee52e",
+      "labels_present": [0, 1, 2, 3, 4, 5, 6]
+    }
+  ],
+  "samples": [
+    {"sample_id":"david-f000000","source_id":"david","frame_index":0,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","standing","rear_view"],"annotation_status":"missing"},
+    {"sample_id":"david-f000060","source_id":"david","frame_index":60,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","standing","front_view"],"annotation_status":"missing"},
+    {"sample_id":"david-f000120","source_id":"david","frame_index":120,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","standing","arms_extended"],"annotation_status":"missing"},
+    {"sample_id":"david-f000180","source_id":"david","frame_index":180,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","movement","side_view"],"annotation_status":"missing"},
+    {"sample_id":"david-f000240","source_id":"david","frame_index":240,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","partial_occlusion","chair"],"annotation_status":"missing"},
+    {"sample_id":"david-f000300","source_id":"david","frame_index":300,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","heavy_occlusion","chair"],"annotation_status":"missing"},
+    {"sample_id":"david-f000360","source_id":"david","frame_index":360,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","heavy_occlusion","chair"],"annotation_status":"missing"},
+    {"sample_id":"david-f000420","source_id":"david","frame_index":420,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","partial_occlusion","chair"],"annotation_status":"missing"},
+    {"sample_id":"david-f000480","source_id":"david","frame_index":480,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","standing","arms_extended"],"annotation_status":"missing"},
+    {"sample_id":"david-f000540","source_id":"david","frame_index":540,"split":"product_acceptance","crosshair_xy":[180,320],"scenarios":["indoor","single_person","standing","front_view"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000000","source_id":"sogo","frame_index":0,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","standing"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000059","source_id":"sogo","frame_index":59,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","standing","movement"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000118","source_id":"sogo","frame_index":118,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","movement"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000177","source_id":"sogo","frame_index":177,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","partial_occlusion","box"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000236","source_id":"sogo","frame_index":236,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","partial_occlusion","box"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000295","source_id":"sogo","frame_index":295,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","crouching","partial_occlusion","box"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000354","source_id":"sogo","frame_index":354,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","crouching","heavy_occlusion","box"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000413","source_id":"sogo","frame_index":413,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","heavy_occlusion","box"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000590","source_id":"sogo","frame_index":590,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","partial_visibility","distance"],"annotation_status":"missing"},
+    {"sample_id":"sogo-f000649","source_id":"sogo","frame_index":649,"split":"product_acceptance","crosshair_xy":[240,427],"scenarios":["indoor","multiple_people","crouching","partial_occlusion","box"],"annotation_status":"missing"}
+  ],
+  "coverage": {
+    "required": ["indoor","single_person","multiple_people","standing","crouching","movement","partial_occlusion","heavy_occlusion","distance"],
+    "deferred_by_owner": ["camouflage"],
+    "future_product_expansion": ["low_light","outdoor"],
+    "missing_product_recordings": ["low_light","outdoor"],
+    "missing": [],
+    "annotation_coverage": {
+      "samples": 20,
+      "boxes": 0,
+      "classes": 0,
+      "coco17_keypoints": 0,
+      "seven_class_masks": 1829,
+      "hit_outcomes": 0,
+      "double_reviewed": 16
+    }
+  }
+}

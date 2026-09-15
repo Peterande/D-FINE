@@ -1,0 +1,61 @@
+__include__: [
+  './dataset/coco_detection.yml',
+  './runtime.yml',
+  './dfine/include/dataloader.yml',
+  './dfine/include/optimizer.yml',
+  './dfine/include/dfine_hgnetv2.yml',
+]
+
+output_dir: ./output/dfine_hgnetv2_x_obj2coco
+
+
+DFINE:
+  backbone: HGNetv2
+
+HGNetv2:
+  name: 'B5'
+  return_idx: [1, 2, 3]
+  freeze_stem_only: True
+  freeze_at: 0
+  freeze_norm: True
+
+HybridEncoder:
+  # intra
+  hidden_dim: 384
+  dim_feedforward: 2048
+
+DFINETransformer:
+  feat_channels: [384, 384, 384]
+  reg_scale: 8
+
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.0000025
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+
+  lr: 0.00025
+  betas: [0.9, 0.999]
+  weight_decay: 0.000125
+
+
+epochs: 36 # Early stop
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: 30
+  collate_fn:
+    stop_epoch: 30
+    ema_restart_decay: 0.9999
+    base_size_repeat: 3
+
+ema:
+  warmups: 0
+
+lr_warmup_scheduler:
+  warmup_duration: 0

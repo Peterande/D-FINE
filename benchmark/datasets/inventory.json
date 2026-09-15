@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-03",
+  "datasets": [
+    {
+      "id": "coco2017",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets/coco",
+      "splits": {"train": 118287, "validation": 5000},
+      "annotations": ["80-class boxes", "instance masks", "COCO-17 keypoints"],
+      "usage": ["training-reference", "public-validation"],
+      "rights": "COCO annotations are CC BY 4.0; image rights remain with their owners",
+      "evidence": "artifact-derived"
+    },
+    {
+      "id": "soldier_coco",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets/soldier_coco",
+      "splits": {"train": 574, "validation": 116},
+      "annotations": ["Civilian/Soldier boxes"],
+      "usage": ["training-reference", "domain-validation"],
+      "rights": "CC BY 4.0 per source Roboflow README",
+      "evidence": "artifact-derived"
+    },
+    {
+      "id": "soldier_civilian_roboflow_export",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets/soldier_civilian",
+      "splits": {"train": 574, "validation": 116, "test": 110},
+      "annotations": ["Civilian/Soldier boxes"],
+      "usage": ["source-only; overlaps soldier_coco"],
+      "rights": "CC BY 4.0 per README.dataset.txt",
+      "evidence": "artifact-derived"
+    },
+    {
+      "id": "camo_detection",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets/camo_detection",
+      "splits": {"train": 797, "validation": 360},
+      "annotations": ["auto-derived camouflage boxes"],
+      "usage": ["training-reference only"],
+      "rights": "mixed/unknown; derived from MCS1K and COD10K",
+      "evidence": "artifact-derived"
+    },
+    {
+      "id": "soldier_camo_merged",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets/soldier_camo_merged",
+      "splits": {"train": 1639, "validation": 539},
+      "annotations": ["Civilian/Soldier boxes", "hard-negative images"],
+      "usage": ["historical training only; composite source"],
+      "rights": "mixed; do not redistribute without resolving every source",
+      "evidence": "artifact-derived"
+    },
+    {
+      "id": "pascal_person_parts_prepared",
+      "root": "/home/berna/D-FINE-NEWBRINGER-benchmark/.cache/datasets/pascal_person_parts_v1",
+      "splits": {"train": 1714, "validation": 1829},
+      "annotations": ["seven-class semantic body-part masks"],
+      "usage": ["source segmentation training and validation"],
+      "rights": "PASCAL-Part annotations plus PASCAL VOC2010 images; retain externally and follow their source terms",
+      "availability": "reconstructed from official hash-pinned source archives; not claimed byte-identical to lost preparation",
+      "reported_labels": ["background", "head", "torso", "arms", "hands", "legs", "feet"],
+      "reported_validation_miou": 0.7364,
+      "evidence": "user-provided and checkpoint-derived"
+    },
+    {
+      "id": "mcs1k_prepared",
+      "root": "/home/berna/D-FINE-NEWBRINGER/segmentation_sivert/data/mcs1k",
+      "splits": {"train": 748, "validation": 330},
+      "annotations": ["binary camouflage masks"],
+      "usage": ["historical camouflage training"],
+      "rights": "unknown locally",
+      "evidence": "measured: sampled masks contain labels 0 and 1 only"
+    },
+    {
+      "id": "camo_prepared",
+      "root": "/home/berna/D-FINE-NEWBRINGER/segmentation_sivert/data/camo",
+      "splits": {"train": 1000, "validation": 250},
+      "annotations": ["binary camouflage masks"],
+      "usage": ["historical camouflage training"],
+      "rights": "unknown locally",
+      "evidence": "measured: sampled masks contain labels 0 and 1 only"
+    },
+    {
+      "id": "cod10k_prepared",
+      "root": "/home/berna/D-FINE-NEWBRINGER/segmentation_sivert/data/cod10k",
+      "splits": {"train": 6000, "validation": 4000},
+      "annotations": ["binary camouflage masks"],
+      "usage": ["historical camouflage training"],
+      "rights": "non-commercial only without separate permission",
+      "evidence": "artifact-derived from COD10K Readme.txt"
+    },
+    {
+      "id": "tagtwo_office_video",
+      "root": "/home/berna/D-FINE-NEWBRINGER/datasets",
+      "splits": {"product_acceptance_sources": 2},
+      "annotations": ["none yet"],
+      "usage": ["product-acceptance only"],
+      "rights": "private Tagtwo recording; repository-local use assumed from user-provided scope",
+      "evidence": "user-provided"
+    }
+  ],
+  "critical_gap": "The original preparation is lost. pascal_person_parts_v1 is a deterministic reconstruction with the owner-reported seven-class map; its metric may differ from the historical 73.64% until measured."
+}
