@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from ..core import BaseConfig
 from ..misc import dist_utils
@@ -26,7 +26,7 @@ def remove_module_prefix(state_dict):
     return new_state_dict
 
 
-class BaseSolver(object):
+class BaseSolver:
     def __init__(self, cfg: BaseConfig) -> None:
         self.cfg = cfg
         self.obj365_ids = [
@@ -149,7 +149,7 @@ class BaseSolver(object):
         if self.writer:
             atexit.register(self.writer.close)
             if dist_utils.is_main_process():
-                self.writer.add_text("config", "{:s}".format(cfg.__repr__()), 0)
+                self.writer.add_text("config", f"{cfg.__repr__():s}", 0)
         self.use_wandb = self.cfg.use_wandb
         if self.use_wandb:
             try:
@@ -274,7 +274,7 @@ class BaseSolver(object):
         print(f"Load model.state_dict, {infos}")
 
     @staticmethod
-    def _matched_state(state: Dict[str, torch.Tensor], params: Dict[str, torch.Tensor]):
+    def _matched_state(state: dict[str, torch.Tensor], params: dict[str, torch.Tensor]):
         missed_list = []
         unmatched_list = []
         matched_state = {}

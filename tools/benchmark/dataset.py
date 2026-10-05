@@ -7,11 +7,11 @@ import glob
 import os
 
 import torch
-import torch.utils.data as data
 import torchvision
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from PIL import Image
+from torch.utils import data
 
 Image.MAX_IMAGE_PIXELS = None
 

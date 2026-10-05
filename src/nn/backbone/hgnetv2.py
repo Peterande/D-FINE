@@ -9,8 +9,8 @@ import logging
 import os
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ...core import register
 from .common import FrozenBatchNorm2d
@@ -538,7 +538,7 @@ class HGNetv2(nn.Module):
 
             except (Exception, KeyboardInterrupt) as e:
                 if safe_get_rank() == 0:
-                    print(f"{str(e)}")
+                    print(f"{e!s}")
                     logging.error(
                         RED + "CRITICAL WARNING: Failed to load pretrained HGNetV2 model" + RESET
                     )

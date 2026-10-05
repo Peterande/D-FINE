@@ -47,7 +47,7 @@ def resize_image_and_update_annotations(image_path, annotations, max_size=640):
 
 def resize_images_and_update_annotations(base_dir, subset, max_size=640, num_workers=4):
     print(f"Starting to resize images and update annotations for subset: {subset}")
-    json_file = os.path.join(base_dir, subset, "new_zhiyuan_objv2_{}.json".format(subset))
+    json_file = os.path.join(base_dir, subset, f"new_zhiyuan_objv2_{subset}.json")
     if not os.path.isfile(json_file):
         print(f"Error: JSON file not found at {json_file}")
         return

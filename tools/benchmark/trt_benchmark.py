@@ -33,7 +33,7 @@ def parse_args():
     return args
 
 
-class TRTInference(object):
+class TRTInference:
     def __init__(
         self, engine_path, device="cuda", backend="torch", max_batch_size=32, verbose=False
     ):

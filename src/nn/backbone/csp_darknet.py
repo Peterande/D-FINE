@@ -7,8 +7,8 @@ import math
 import warnings
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ...core import register
 from .common import get_activation

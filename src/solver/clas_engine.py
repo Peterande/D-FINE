@@ -4,7 +4,7 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from ..misc import MetricLogger, SmoothedValue, reduce_dict
 
@@ -18,7 +18,7 @@ def train_one_epoch(
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
     print_freq = 100
-    header = "Epoch: [{}]".format(epoch)
+    header = f"Epoch: [{epoch}]"
 
     for imgs, labels in metric_logger.log_every(dataloader, print_freq, header):
         imgs = imgs.to(device)

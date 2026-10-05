@@ -203,7 +203,7 @@ class DetSolver(BaseSolver):
 
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print("Training time {}".format(total_time_str))
+        print(f"Training time {total_time_str}")
 
     def val(self):
         self.eval()
@@ -225,4 +225,3 @@ class DetSolver(BaseSolver):
                 coco_evaluator.coco_eval["bbox"].eval, self.output_dir / "eval.pth"
             )
 
-        return

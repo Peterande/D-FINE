@@ -4,8 +4,6 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 from .arch import *
-
-#
 from .backbone import *
 from .backbone import (
     FrozenBatchNorm2d,

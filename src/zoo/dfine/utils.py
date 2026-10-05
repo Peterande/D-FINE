@@ -10,8 +10,8 @@ import math
 from typing import List
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
@@ -74,7 +74,7 @@ def deformable_attention_core_func_v2(
     value_spatial_shapes,
     sampling_locations: torch.Tensor,
     attention_weights: torch.Tensor,
-    num_points_list: List[int],
+    num_points_list: list[int],
     method="default",
 ):
     """

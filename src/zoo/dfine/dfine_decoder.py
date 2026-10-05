@@ -13,9 +13,9 @@ from collections import OrderedDict
 from typing import List
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.init as init
+from torch import nn
+from torch.nn import init
 
 from ...core import register
 from .denoising import get_contrastive_denoising_training_group
@@ -57,7 +57,7 @@ class MSDeformableAttention(nn.Module):
         offset_scale=0.5,
     ):
         """Multi-Scale Deformable Attention"""
-        super(MSDeformableAttention, self).__init__()
+        super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.num_levels = num_levels
@@ -121,7 +121,7 @@ class MSDeformableAttention(nn.Module):
         query: torch.Tensor,
         reference_points: torch.Tensor,
         value: torch.Tensor,
-        value_spatial_shapes: List[int],
+        value_spatial_shapes: list[int],
     ):
         """
         Args:
@@ -166,9 +166,7 @@ class MSDeformableAttention(nn.Module):
             sampling_locations = reference_points[:, :, None, :, :2] + offset
         else:
             raise ValueError(
-                "Last dim of reference_points must be 2 or 4, but get {} instead.".format(
-                    reference_points.shape[-1]
-                )
+                f"Last dim of reference_points must be 2 or 4, but get {reference_points.shape[-1]} instead."
             )
 
         output = self.ms_deformable_attn_core(
@@ -191,7 +189,7 @@ class TransformerDecoderLayer(nn.Module):
         cross_attn_method="default",
         layer_scale=None,
     ):
-        super(TransformerDecoderLayer, self).__init__()
+        super().__init__()
         if layer_scale is not None:
             dim_feedforward = round(layer_scale * dim_feedforward)
             d_model = round(layer_scale * d_model)
@@ -257,7 +255,7 @@ class TransformerDecoderLayer(nn.Module):
 
 class Gate(nn.Module):
     def __init__(self, d_model):
-        super(Gate, self).__init__()
+        super().__init__()
         self.gate = nn.Linear(2 * d_model, 2 * d_model)
         bias = bias_init_with_prob(0.5)
         init.constant_(self.gate.bias, bias)
@@ -285,7 +283,7 @@ class Integral(nn.Module):
     """
 
     def __init__(self, reg_max=32):
-        super(Integral, self).__init__()
+        super().__init__()
         self.reg_max = reg_max
 
     def forward(self, x, project):
@@ -297,7 +295,7 @@ class Integral(nn.Module):
 
 class LQE(nn.Module):
     def __init__(self, k, hidden_dim, num_layers, reg_max):
-        super(LQE, self).__init__()
+        super().__init__()
         self.k = k
         self.reg_max = reg_max
         self.reg_conf = MLP(4 * (k + 1), hidden_dim, 1, num_layers)
@@ -335,7 +333,7 @@ class TransformerDecoder(nn.Module):
         eval_idx=-1,
         layer_scale=2,
     ):
-        super(TransformerDecoder, self).__init__()
+        super().__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.layer_scale = layer_scale
@@ -703,7 +701,7 @@ class DFINETransformer(nn.Module):
                 )
                 in_channels = self.hidden_dim
 
-    def _get_encoder_input(self, feats: List[torch.Tensor]):
+    def _get_encoder_input(self, feats: list[torch.Tensor]):
         # get projection features
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
         if self.num_levels > len(proj_feats):

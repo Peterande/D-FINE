@@ -10,9 +10,9 @@ import copy
 
 import torch
 import torch.distributed
-import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torch import nn
 
 from ...core import register
 from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized

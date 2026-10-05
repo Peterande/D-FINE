@@ -14,10 +14,10 @@ import fiftyone.core.labels as fol
 import fiftyone.core.models as fom
 import fiftyone.zoo as foz
 import torch
-import torchvision.transforms as transforms
 import tqdm
 from fiftyone import ViewField as F
 from PIL import Image
+from torchvision import transforms
 
 from src.core import YAMLConfig
 
@@ -352,16 +352,16 @@ def main(args):
             # Apply models and save predictions in different label fields
             for i in [L]:
                 model.model.decoder.decoder.eval_idx = i
-                label_field = "predictions{:d}".format(i)
+                label_field = f"predictions{i:d}"
                 predictions_view.apply_model(model, label_field=label_field)
 
             # filter_by_predictions5_confidence(predictions_view, confidence_threshold=0.3)
             for i in [L]:
-                label_field = "predictions{:d}".format(i)
+                label_field = f"predictions{i:d}"
                 predictions_view = predictions_view.filter_labels(
                     label_field, F("confidence") > 0.5, only_matches=False
                 )
-                eval_key = "eval{:d}".format(i)
+                eval_key = f"eval{i:d}"
                 _ = predictions_view.evaluate_detections(
                     label_field,
                     gt_field="ground_truth",

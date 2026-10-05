@@ -10,8 +10,8 @@ import copy
 from collections import OrderedDict
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ...core import register
 from .utils import get_activation
@@ -218,7 +218,7 @@ class CSPLayer(nn.Module):
         act="silu",
         bottletype=VGGBlock,
     ):
-        super(CSPLayer, self).__init__()
+        super().__init__()
         hidden_channels = int(out_channels * expansion)
         self.conv1 = ConvNormLayer_fuse(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
         self.conv2 = ConvNormLayer_fuse(in_channels, hidden_channels, 1, 1, bias=bias, act=act)
@@ -293,7 +293,7 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerEncoder(nn.Module):
     def __init__(self, encoder_layer, num_layers, norm=None):
-        super(TransformerEncoder, self).__init__()
+        super().__init__()
         self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])
         self.num_layers = num_layers
         self.norm = norm

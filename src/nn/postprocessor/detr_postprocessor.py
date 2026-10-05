@@ -4,9 +4,9 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torch import nn
 
 __all__ = ["DetDETRPostProcessor"]
 

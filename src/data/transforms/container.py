@@ -6,9 +6,9 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 from typing import Any, Dict, List, Optional
 
 import torch
-import torch.nn as nn
 import torchvision
 import torchvision.transforms.v2 as T
+from torch import nn
 
 from ...core import GLOBAL_CONFIG, register
 from ._transforms import EmptyTransform

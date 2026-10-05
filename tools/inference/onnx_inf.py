@@ -146,7 +146,7 @@ def main(args):
         # Try to open the input as an image
         im_pil = Image.open(input_path).convert("RGB")
         process_image(sess, im_pil)
-    except IOError:
+    except OSError:
         # Not an image, process as video
         process_video(sess, input_path)
 

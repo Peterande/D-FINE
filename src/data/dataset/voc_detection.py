@@ -4,7 +4,8 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import torch
 import torchvision
@@ -33,10 +34,10 @@ class VOCDetection(torchvision.datasets.VOCDetection, DetDataset):
         root: str,
         ann_file: str = "trainval.txt",
         label_file: str = "label_list.txt",
-        transforms: Optional[Callable] = None,
+        transforms: Callable | None = None,
     ):
         with open(os.path.join(root, ann_file), "r") as f:
-            lines = [x.strip() for x in f.readlines()]
+            lines = [x.strip() for x in f]
             lines = [x.split(" ") for x in lines]
 
         self.images = [os.path.join(root, lin[0]) for lin in lines]

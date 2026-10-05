@@ -3,27 +3,29 @@ Copied from RT-DETR (https://github.com/lyuwenyu/RT-DETR)
 Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
-import PIL
+from typing import Dict, List
+
 import numpy as np
+import PIL
 import torch
 import torch.utils.data
 import torchvision
-from typing import List, Dict
 
 torchvision.disable_beta_transforms_warning()
 
-__all__ = ["show_sample", "save_samples"]
+__all__ = ["save_samples", "show_sample"]
 
-def save_samples(samples: torch.Tensor, targets: List[Dict], output_dir: str, split: str, normalized: bool, box_fmt: str):
+def save_samples(samples: torch.Tensor, targets: list[dict], output_dir: str, split: str, normalized: bool, box_fmt: str):
     '''
     normalized: whether the boxes are normalized to [0, 1]
     box_fmt: 'xyxy', 'xywh', 'cxcywh', D-FINE uses 'cxcywh' for training, 'xyxy' for validation
     '''
-    from torchvision.transforms.functional import to_pil_image
-    from torchvision.ops import box_convert
-    from pathlib import Path
-    from PIL import ImageDraw, ImageFont
     import os
+    from pathlib import Path
+
+    from PIL import ImageDraw, ImageFont
+    from torchvision.ops import box_convert
+    from torchvision.transforms.functional import to_pil_image
 
     os.makedirs(Path(output_dir) / Path(f"{split}_samples"), exist_ok=True)
     # Predefined colors (standard color names recognized by PIL)

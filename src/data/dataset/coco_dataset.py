@@ -5,11 +5,12 @@ Mostly copy-paste from https://github.com/pytorch/vision/blob/13b35ff/references
 Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
+import os
+
 import faster_coco_eval.core.mask as coco_mask
-from faster_coco_eval.utils.pytorch import FasterCocoDetection
 import torch
 import torchvision
-import os
+from faster_coco_eval.utils.pytorch import FasterCocoDetection
 from PIL import Image
 
 from ...core import register
@@ -73,9 +74,9 @@ class CocoDetection(FasterCocoDetection, DetDataset):
         s = f" img_folder: {self.img_folder}\n ann_file: {self.ann_file}\n"
         s += f" return_masks: {self.return_masks}\n"
         if hasattr(self, "_transforms") and self._transforms is not None:
-            s += f" transforms:\n   {repr(self._transforms)}"
+            s += f" transforms:\n   {self._transforms!r}"
         if hasattr(self, "_preset") and self._preset is not None:
-            s += f" preset:\n   {repr(self._preset)}"
+            s += f" preset:\n   {self._preset!r}"
         return s
 
     @property
@@ -120,7 +121,7 @@ def convert_coco_poly_to_mask(segmentations, height, width):
     return masks
 
 
-class ConvertCocoPolysToMask(object):
+class ConvertCocoPolysToMask:
     def __init__(self, return_masks=False):
         self.return_masks = return_masks
 

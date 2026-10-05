@@ -4,7 +4,10 @@ https://towardsdatascience.com/getting-started-with-pytorch-image-models-timm-a-
 """
 
 import torch
-from torchvision.models.feature_extraction import create_feature_extractor, get_graph_node_names
+from torchvision.models.feature_extraction import (
+    create_feature_extractor,
+    get_graph_node_names,
+)
 
 from ...core import register
 from .utils import IntermediateLayerGetter

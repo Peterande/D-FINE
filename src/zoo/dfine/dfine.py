@@ -2,7 +2,7 @@
 Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
-import torch.nn as nn
+from torch import nn
 
 from ...core import register
 
