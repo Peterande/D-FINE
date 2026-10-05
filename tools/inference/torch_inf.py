@@ -8,9 +8,9 @@ import sys
 import cv2  # Added for video processing
 import numpy as np
 import torch
-import torch.nn as nn
 import torchvision.transforms as T
 from PIL import Image, ImageDraw
+from torch import nn
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from src.core import YAMLConfig

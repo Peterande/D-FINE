@@ -4,7 +4,7 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch
-import torch.utils.data as data
+from torch.utils import data
 
 
 class DetDataset(data.Dataset):

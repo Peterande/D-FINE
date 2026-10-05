@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import torch.backends.cudnn
 import torch.distributed
-import torch.nn as nn
+from torch import nn
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DataParallel as DP
 from torch.nn.parallel import DistributedDataParallel as DDP

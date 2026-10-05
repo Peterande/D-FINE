@@ -9,7 +9,7 @@ from ._solver import BaseSolver
 from .clas_solver import ClasSolver
 from .det_solver import DetSolver
 
-TASKS: Dict[str, BaseSolver] = {
+TASKS: dict[str, BaseSolver] = {
     "classification": ClasSolver,
     "detection": DetSolver,
 }

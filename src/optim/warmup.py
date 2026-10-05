@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import LRScheduler
 from ..core import register
 
 
-class Warmup(object):
+class Warmup:
     def __init__(
         self, lr_scheduler: LRScheduler, warmup_duration: int, last_step: int = -1
     ) -> None:

@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional
 import PIL
 import PIL.Image
 import torch
-import torch.nn as nn
 import torchvision
 import torchvision.transforms.v2 as T
 import torchvision.transforms.v2.functional as F
+from torch import nn
 
 from ...core import register
 from .._misc import (
@@ -61,7 +61,7 @@ class PadToSize(T.Pad):
         BoundingBoxes,
     )
 
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def _get_params(self, flat_inputs: list[Any]) -> dict[str, Any]:
         sp = F.get_spatial_size(flat_inputs[0])
         h, w = self.size[1] - sp[0], self.size[0] - sp[1]
         self.padding = [0, 0, w, h]
@@ -73,7 +73,7 @@ class PadToSize(T.Pad):
         self.size = size
         super().__init__(0, fill, padding_mode)
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def _transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         fill = self._fill[type(inpt)]
         padding = params["padding"]
         return F.pad(inpt, padding=padding, fill=fill, padding_mode=self.padding_mode)  # type: ignore[arg-type]
@@ -93,7 +93,7 @@ class RandomIoUCrop(T.RandomIoUCrop):
         max_scale: float = 1,
         min_aspect_ratio: float = 0.5,
         max_aspect_ratio: float = 2,
-        sampler_options: Optional[List[float]] = None,
+        sampler_options: list[float] | None = None,
         trials: int = 40,
         p: float = 1.0,
     ):
@@ -118,10 +118,10 @@ class ConvertBoxes(T.Transform):
         self.fmt = fmt
         self.normalize = normalize
 
-    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         return self._transform(inpt, params)
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def _transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         spatial_size = getattr(inpt, _boxes_keys[1])
         if self.fmt:
             in_fmt = inpt.format.value.lower()
@@ -145,10 +145,10 @@ class ConvertPILImage(T.Transform):
         self.dtype = dtype
         self.scale = scale
 
-    def transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         return self._transform(inpt, params)
 
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def _transform(self, inpt: Any, params: dict[str, Any]) -> Any:
         inpt = F.pil_to_tensor(inpt)
         if self.dtype == "float32":
             inpt = inpt.float()

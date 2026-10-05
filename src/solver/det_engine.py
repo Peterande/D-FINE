@@ -8,7 +8,8 @@ Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
 import math
 import sys
-from typing import Dict, Iterable, List
+from collections.abc import Iterable
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -43,7 +44,7 @@ def train_one_epoch(
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
 
     epochs = kwargs.get("epochs", None)
-    header = "Epoch: [{}]".format(epoch) if epochs is None else "Epoch: [{}/{}]".format(epoch, epochs)
+    header = f"Epoch: [{epoch}]" if epochs is None else f"Epoch: [{epoch}/{epochs}]"
 
     print_freq = kwargs.get("print_freq", 10)
     writer: SummaryWriter = kwargs.get("writer", None)
@@ -123,7 +124,7 @@ def train_one_epoch(
         losses.append(loss_value.detach().cpu().numpy())
 
         if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
+            print(f"Loss is {loss_value}, stopping training")
             print(loss_dict_reduced)
             sys.exit(1)
 
@@ -175,8 +176,8 @@ def evaluate(
     # coco_evaluator = CocoEvaluator(base_ds, iou_types)
     # coco_evaluator.coco_eval[iou_types[0]].params.iouThrs = [0, 0.1, 0.5, 0.75]
 
-    gt: List[Dict[str, torch.Tensor]] = []
-    preds: List[Dict[str, torch.Tensor]] = []
+    gt: list[dict[str, torch.Tensor]] = []
+    preds: list[dict[str, torch.Tensor]] = []
 
     output_dir = kwargs.get("output_dir", None)
     num_visualization_sample_batch = kwargs.get("num_visualization_sample_batch", 1)

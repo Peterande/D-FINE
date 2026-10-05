@@ -8,9 +8,9 @@ from functools import partial
 
 import torch
 import torch.nn.functional as F
-import torch.utils.data as data
 import torchvision
 import torchvision.transforms.v2 as VT
+from torch.utils import data
 from torch.utils.data import default_collate
 from torchvision.transforms.v2 import InterpolationMode
 from torchvision.transforms.v2 import functional as VF
@@ -21,9 +21,9 @@ torchvision.disable_beta_transforms_warning()
 
 
 __all__ = [
-    "DataLoader",
     "BaseCollateFunction",
     "BatchImageCollateFunction",
+    "DataLoader",
     "batch_image_collate_fn",
 ]
 
@@ -36,7 +36,7 @@ class DataLoader(data.DataLoader):
         format_string = self.__class__.__name__ + "("
         for n in ["dataset", "batch_size", "num_workers", "drop_last", "collate_fn"]:
             format_string += "\n"
-            format_string += "    {0}: {1}".format(n, getattr(self, n))
+            format_string += f"    {n}: {getattr(self, n)}"
         format_string += "\n)"
         return format_string
 
@@ -65,7 +65,7 @@ def batch_image_collate_fn(items):
     return torch.cat([x[0][None] for x in items], dim=0), [x[1] for x in items]
 
 
-class BaseCollateFunction(object):
+class BaseCollateFunction:
     def set_epoch(self, epoch):
         self._epoch = epoch
 

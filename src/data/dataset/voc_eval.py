@@ -7,6 +7,6 @@ import torch
 import torchvision
 
 
-class VOCEvaluator(object):
+class VOCEvaluator:
     def __init__(self) -> None:
         pass

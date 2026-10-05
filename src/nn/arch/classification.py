@@ -4,11 +4,11 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from ...core import register
 
-__all__ = ["Classification", "ClassHead"]
+__all__ = ["ClassHead", "Classification"]
 
 
 @register()

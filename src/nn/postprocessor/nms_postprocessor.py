@@ -37,7 +37,7 @@ class DetNMSPostProcessor(torch.nn.Module):
         self.logit_func = getattr(F, self.logit_fmt, None)
         self.deploy_mode = False
 
-    def forward(self, outputs: Dict[str, Tensor], orig_target_sizes: Tensor):
+    def forward(self, outputs: dict[str, Tensor], orig_target_sizes: Tensor):
         logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
         pred_boxes = torchvision.ops.box_convert(boxes, in_fmt=self.box_fmt, out_fmt="xyxy")
         pred_boxes *= orig_target_sizes.repeat(1, 2).unsqueeze(1)

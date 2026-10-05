@@ -9,9 +9,9 @@ from typing import Dict
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
+from torch import nn
 
 from ...core import register
 from .box_ops import box_cxcywh_to_xyxy, generalized_box_iou
@@ -52,7 +52,7 @@ class HungarianMatcher(nn.Module):
         ), "all costs cant be 0"
 
     @torch.no_grad()
-    def forward(self, outputs: Dict[str, torch.Tensor], targets, return_topk=False):
+    def forward(self, outputs: dict[str, torch.Tensor], targets, return_topk=False):
         """Performs the matching
 
         Params:

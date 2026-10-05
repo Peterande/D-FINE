@@ -10,7 +10,7 @@ import math
 from copy import deepcopy
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from ..core import register
 from ..misc import dist_utils
@@ -19,7 +19,7 @@ __all__ = ["ModelEMA"]
 
 
 @register()
-class ModelEMA(object):
+class ModelEMA:
     """
     Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
     Keep a moving average of everything in the model state_dict (parameters and buffers).

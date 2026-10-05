@@ -6,8 +6,8 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 from collections import OrderedDict
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ...core import register
 from .common import FrozenBatchNorm2d, get_activation

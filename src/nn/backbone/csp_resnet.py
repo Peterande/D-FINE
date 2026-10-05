@@ -7,8 +7,8 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 from collections import OrderedDict
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ...core import register
 from .common import get_activation
@@ -131,7 +131,7 @@ class EffectiveSELayer(nn.Module):
     """
 
     def __init__(self, channels, act="hardsigmoid"):
-        super(EffectiveSELayer, self).__init__()
+        super().__init__()
         self.fc = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
         self.act = get_activation(act)
 

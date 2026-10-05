@@ -27,7 +27,7 @@ class LazyLoader(types.ModuleType):
         # - for is_routine()
         self.__wrapped__ = None
 
-        super(LazyLoader, self).__init__(name)
+        super().__init__(name)
 
     def _load(self):
         """Load the module and insert it into the parent's globals."""

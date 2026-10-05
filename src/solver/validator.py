@@ -13,8 +13,8 @@ from torchvision.ops import box_iou
 class Validator:
     def __init__(
         self,
-        gt: List[Dict[str, torch.Tensor]],
-        preds: List[Dict[str, torch.Tensor]],
+        gt: list[dict[str, torch.Tensor]],
+        preds: list[dict[str, torch.Tensor]],
         conf_thresh=0.5,
         iou_thresh=0.5,
     ) -> None:
@@ -31,7 +31,7 @@ class Validator:
         self.thresholds = np.arange(0.2, 1.0, 0.05)
         self.conf_matrix = None
 
-    def compute_metrics(self, extended=False) -> Dict[str, float]:
+    def compute_metrics(self, extended=False) -> dict[str, float]:
         filtered_preds = filter_preds(copy.deepcopy(self.preds), self.conf_thresh)
         metrics = self._compute_main_metrics(filtered_preds)
         if not extended:

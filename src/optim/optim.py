@@ -3,12 +3,12 @@ Copied from RT-DETR (https://github.com/lyuwenyu/RT-DETR)
 Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
-import torch.optim as optim
-import torch.optim.lr_scheduler as lr_scheduler
+from torch import optim
+from torch.optim import lr_scheduler
 
 from ..core import register
 
-__all__ = ["AdamW", "SGD", "Adam", "MultiStepLR", "CosineAnnealingLR", "OneCycleLR", "LambdaLR"]
+__all__ = ["SGD", "Adam", "AdamW", "CosineAnnealingLR", "LambdaLR", "MultiStepLR", "OneCycleLR"]
 
 
 SGD = register()(optim.SGD)

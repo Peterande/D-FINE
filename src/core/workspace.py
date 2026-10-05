@@ -99,14 +99,14 @@ def create(type_or_name, global_cfg=GLOBAL_CONFIG, **kwargs):
         if hasattr(global_cfg[name], "__dict__"):
             return global_cfg[name]
     else:
-        raise ValueError("The module {} is not registered".format(name))
+        raise ValueError(f"The module {name} is not registered")
 
     cfg = global_cfg[name]
 
     if isinstance(cfg, dict) and "type" in cfg:
         _cfg: dict = global_cfg[cfg["type"]]
         # clean args
-        _keys = [k for k in _cfg.keys() if not k.startswith("_")]
+        _keys = [k for k in _cfg if not k.startswith("_")]
         for _arg in _keys:
             del _cfg[_arg]
         _cfg.update(_cfg["_kwargs"])  # restore default args

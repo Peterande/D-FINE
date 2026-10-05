@@ -3,11 +3,12 @@ Copied from RT-DETR (https://github.com/lyuwenyu/RT-DETR)
 Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Dict, List
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
@@ -19,7 +20,7 @@ __all__ = [
 ]
 
 
-class BaseConfig(object):
+class BaseConfig:
     # TODO property
 
     def __init__(self) -> None:
